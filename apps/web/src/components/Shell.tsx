@@ -5,7 +5,6 @@ import { NavLink, useNavigate } from "react-router-dom";
 import { api } from "../lib/api";
 import { formatDate } from "../lib/money";
 import type { Integrity, Overview, Owner } from "../lib/types";
-import QuickEntry from "./QuickEntry";
 import { LogoMark } from "./LogoMark";
 import { AREA_INK, Annot, cx } from "./ui";
 
@@ -16,10 +15,8 @@ const AREAS = [
 ];
 
 const LEDGER = [
-  { to: "/entries", label: "Entries" },
-  { to: "/reconcile", label: "Reconcile", badge: true },
   { to: "/reports", label: "Reports" },
-  { to: "/settings", label: "Settings" },
+  { to: "/settings", label: "Settings", badge: true },
 ];
 
 export default function Shell({ children }: { children: React.ReactNode }) {
@@ -91,9 +88,12 @@ export default function Shell({ children }: { children: React.ReactNode }) {
                 cx(
                   "flex items-center border-b-2 pt-4 text-[13px] transition-colors",
                   isActive
-                    ? "border-ink text-ink"
+                    ? "text-ink"
                     : "border-transparent text-ink-3 hover:text-ink",
                 )
+              }
+              style={({ isActive }) =>
+                isActive ? { borderBottomColor: "var(--accent)" } : undefined
               }
             >
               Overview
@@ -124,9 +124,12 @@ export default function Shell({ children }: { children: React.ReactNode }) {
                   cx(
                     "flex items-center gap-1.5 border-b-2 pt-4 text-[13px] transition-colors",
                     isActive
-                      ? "border-ink text-ink"
+                      ? "text-ink"
                       : "border-transparent text-ink-3 hover:text-ink",
                   )
+                }
+                style={({ isActive }) =>
+                  isActive ? { borderBottomColor: "var(--accent)" } : undefined
                 }
               >
                 {item.label}
@@ -192,9 +195,6 @@ export default function Shell({ children }: { children: React.ReactNode }) {
           </div>
         )}
       </header>
-
-      {/* ================================================== quick entry === */}
-      <QuickEntry />
 
       {integrity && !integrity.ok && (
         <div className="no-print border-b border-oxide bg-paper-2">

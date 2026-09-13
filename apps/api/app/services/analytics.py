@@ -550,8 +550,6 @@ def overview(db: Session, as_of: date | None = None) -> dict:
     That is the same invariant the rest of the system rests on, shown as the
     headline figure rather than hidden in a health endpoint.
     """
-    from ..models import SavingsGoal
-
     today = as_of or date.today()
     month_start = today.replace(day=1)
     fy_start, fy_end = fiscal_year_bounds(today)
@@ -559,7 +557,6 @@ def overview(db: Session, as_of: date | None = None) -> dict:
     personal = ledger.personal_fund(db)
     unassigned = ledger.unassigned_fund(db)
     project_funds = ledger.funds_of_kind(db, FundKind.project.value)
-    savings_funds = ledger.funds_of_kind(db, FundKind.savings.value)
 
     # --- personal -----------------------------------------------------------
     p_in, p_out = _area_flows(db, [personal.id], month_start, today)
@@ -596,42 +593,16 @@ def overview(db: Session, as_of: date | None = None) -> dict:
         "projects": [asdict(s) for s in summaries],
     }
 
-    # --- savings ------------------------------------------------------------
-    goals = []
-    for goal in db.scalars(
-        select(SavingsGoal).where(SavingsGoal.is_archived.is_(False))
-        .order_by(SavingsGoal.sort_order, SavingsGoal.id)
-    ):
-        balance = ledger.fund_balance(db, goal.fund_id, today)
-        target = goal.target_amount
-        goals.append({
-            "id": goal.id,
-            "fund_id": goal.fund_id,
-            "name": goal.name,
-            "balance": balance,
-            "target_amount": target,
-            "target_date": goal.target_date.isoformat() if goal.target_date else None,
-            "note": goal.note,
-            "percent": round(balance / target * 100, 1) if target else 0.0,
-            "remaining": max(target - balance, 0),
-        })
-
-    contributed = sum(
-        t.amount
-        for t in db.scalars(
-            select(FundTransfer).where(
-                FundTransfer.to_fund_id.in_([f.id for f in savings_funds] or [-1]),
-                FundTransfer.date >= month_start,
-                FundTransfer.date <= today,
-            )
-        )
-    ) if savings_funds else 0
-
+    # --- savings --------------------------------------------------------------
+    # A plain area now, entered exactly like Personal -- no goals, no envelopes.
+    savings = ledger.savings_fund(db)
+    s_in, s_out = _area_flows(db, [savings.id], month_start, today)
     savings_area = {
-        "balance": sum(ledger.fund_balance(db, f.id, today) for f in savings_funds),
-        "contributed_month": contributed,
-        "goal_count": len(goals),
-        "goals": goals,
+        "balance": ledger.fund_balance(db, savings.id, today),
+        "in_month": s_in,
+        "out_month": s_out,
+        "net_month": s_in - s_out,
+        "fund_id": savings.id,
     }
 
     unassigned_balance = ledger.fund_balance(db, unassigned.id, today)

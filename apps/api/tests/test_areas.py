@@ -11,23 +11,10 @@ from datetime import date, timedelta
 import pytest
 
 from app.core.money import to_paise
-from app.models import Fund, FundKind, SavingsGoal, TransferReason, TxnKind
+from app.models import TxnKind
 from app.services import analytics, importer, ledger
 
 from .conftest import assert_invariant
-
-
-@pytest.fixture()
-def goal(db):
-    fund = Fund(kind=FundKind.savings.value, name="Emergency fund")
-    db.add(fund)
-    db.flush()
-    row = SavingsGoal(
-        name="Emergency fund", fund_id=fund.id, target_amount=to_paise("3,00,000")
-    )
-    db.add(row)
-    db.flush()
-    return row
 
 
 def credit(db, account, amount, fund_id, *, kind, on=date(2026, 6, 1)):
@@ -40,22 +27,19 @@ def credit(db, account, amount, fund_id, *, kind, on=date(2026, 6, 1)):
 
 class TestAreasAddUp:
     def test_three_areas_plus_unfiled_equal_the_bank(
-        self, db, bank, project, project_fund, goal
+        self, db, bank, project, project_fund
     ):
         personal = ledger.personal_fund(db)
+        savings = ledger.savings_fund(db)
 
         credit(db, bank, "50,000", personal.id, kind=TxnKind.personal_income.value)
         credit(db, bank, "5,00,000", project_fund.id,
                kind=TxnKind.client_payment.value)
+        credit(db, bank, "10,000", savings.id, kind=TxnKind.personal_income.value)
         # Something imported but not yet filed.
         ledger.record_transaction(
             db, account_id=bank.id, value_date=date(2026, 6, 3), direction="debit",
             amount=to_paise("4,500"), description="UPI/DR/UNKNOWN", source="file",
-        )
-        ledger.create_fund_transfer(
-            db, from_fund_id=personal.id, to_fund_id=goal.fund_id,
-            amount=to_paise("10,000"), on=date(2026, 6, 5),
-            reason=TransferReason.savings_contribution.value,
         )
 
         view = analytics.overview(db, date(2026, 6, 30))
@@ -68,52 +52,45 @@ class TestAreasAddUp:
         assert total == view["bank_balance"]
         assert_invariant(db)
 
-    def test_savings_shows_against_its_goal(self, db, bank, goal):
-        personal = ledger.personal_fund(db)
-        credit(db, bank, "50,000", personal.id, kind=TxnKind.personal_income.value)
-        ledger.create_fund_transfer(
-            db, from_fund_id=personal.id, to_fund_id=goal.fund_id,
-            amount=to_paise("30,000"), on=date(2026, 6, 5),
-            reason=TransferReason.savings_contribution.value,
-        )
+    def test_savings_is_a_plain_area_like_personal(self, db, bank):
+        savings = ledger.savings_fund(db)
+        credit(db, bank, "30,000", savings.id, kind=TxnKind.personal_income.value)
 
         view = analytics.overview(db, date(2026, 6, 30))
         assert view["savings"]["balance"] == to_paise("30,000")
-        assert view["personal"]["balance"] == to_paise("20,000")
-        assert view["savings"]["goals"][0]["percent"] == 10.0
-        assert view["savings"]["goals"][0]["remaining"] == to_paise("2,70,000")
+        assert view["savings"]["in_month"] == to_paise("30,000")
+        assert view["savings"]["fund_id"] == savings.id
 
 
-class TestSavingsMovesNoCash:
-    def test_setting_money_aside_is_not_a_transaction(self, db, bank, goal):
-        personal = ledger.personal_fund(db)
-        credit(db, bank, "50,000", personal.id, kind=TxnKind.personal_income.value)
+class TestSavingsIsARealTransaction:
+    """Savings dropped the goal/envelope model: an entry here is a real
+    transaction on the account, filed to the Savings fund -- exactly the same
+    mechanism Personal already used, not a no-cash internal transfer."""
+
+    def test_adding_to_savings_is_a_real_transaction(self, db, bank):
+        savings = ledger.savings_fund(db)
         before = ledger.total_cash(db)
 
-        ledger.create_fund_transfer(
-            db, from_fund_id=personal.id, to_fund_id=goal.fund_id,
-            amount=to_paise("10,000"), on=date(2026, 6, 5),
-            reason=TransferReason.savings_contribution.value,
-        )
+        credit(db, bank, "10,000", savings.id, kind=TxnKind.personal_income.value)
 
-        # The money is reserved, not moved. The bank never saw it.
-        assert ledger.total_cash(db) == before
-        assert ledger.fund_balance(db, goal.fund_id) == to_paise("10,000")
+        assert ledger.total_cash(db) == before + to_paise("10,000")
+        assert ledger.fund_balance(db, savings.id) == to_paise("10,000")
         assert_invariant(db)
 
-    def test_saving_is_neither_income_nor_expense(self, db, bank, goal):
-        personal = ledger.personal_fund(db)
-        credit(db, bank, "50,000", personal.id, kind=TxnKind.personal_income.value)
-        ledger.create_fund_transfer(
-            db, from_fund_id=personal.id, to_fund_id=goal.fund_id,
-            amount=to_paise("10,000"), on=date(2026, 6, 5),
-            reason=TransferReason.savings_contribution.value,
+    def test_it_counts_as_real_cash_flow_for_the_area(self, db, bank):
+        savings = ledger.savings_fund(db)
+        credit(db, bank, "10,000", savings.id, kind=TxnKind.personal_income.value)
+        ledger.record_transaction(
+            db, account_id=bank.id, value_date=date(2026, 6, 10), direction="debit",
+            amount=to_paise("2,000"), kind=TxnKind.personal_spend.value,
+            description="Withdrawn",
+            splits=[ledger.Split(fund_id=savings.id, amount=to_paise("2,000"))],
         )
 
         view = analytics.overview(db, date(2026, 6, 30))
-        # 50,000 came in; nothing went out. Saving some of it changes neither.
-        assert view["personal"]["in_month"] == to_paise("50,000")
-        assert view["personal"]["out_month"] == 0
+        assert view["savings"]["in_month"] == to_paise("10,000")
+        assert view["savings"]["out_month"] == to_paise("2,000")
+        assert view["savings"]["net_month"] == to_paise("8,000")
 
 
 class TestManualMatching:

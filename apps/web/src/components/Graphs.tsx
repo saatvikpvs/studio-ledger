@@ -1,4 +1,4 @@
-import { axisTick, formatMonth, formatPaise } from "../lib/money";
+import { axisTick, formatCompact, formatMonth, formatPaise } from "../lib/money";
 import type { CategorySlice, MonthlyFlow } from "../lib/types";
 import { Annot, Money, cx } from "./ui";
 
@@ -146,29 +146,112 @@ function Legend({ colour, label }: { colour: string; label: string }) {
   );
 }
 
-/** A goal's progress: a ruled bar with the target marked on it. */
-export function GoalRule({
-  balance,
-  target,
-  colour = "var(--patina)",
+/**
+ * The ring at the top of Overview: total money, cut into Personal /
+ * Professional / Savings (and Unfiled, if anything sits there) as arcs with
+ * a percentage each, hand-drawn with stroke-dasharray rather than pulled from
+ * a charting library — consistent with every other drawing in this app, and
+ * the one visualisation the brief asked for by name: a ring with clean
+ * percentage indicators, legible at a glance.
+ */
+export interface DonutSlice {
+  label: string;
+  amount: number;
+  colour: string;
+}
+
+export function AreaDonut({
+  slices,
+  total,
+  size = 220,
 }: {
-  balance: number;
-  target: number;
-  colour?: string;
+  slices: DonutSlice[];
+  total: number;
+  size?: number;
 }) {
-  const percent = target ? Math.min(100, (balance / target) * 100) : 0;
+  const radius = 72;
+  const circumference = 2 * Math.PI * radius;
+  const positive = slices.filter((s) => s.amount > 0);
+  const sum = positive.reduce((s, slice) => s + slice.amount, 0) || 1;
+
+  let offset = 0;
+  const arcs = positive.map((slice) => {
+    const fraction = slice.amount / sum;
+    const length = fraction * circumference;
+    const dasharray = `${length} ${circumference - length}`;
+    const dashoffset = -offset;
+    offset += length;
+    return { ...slice, fraction, dasharray, dashoffset };
+  });
+
   return (
-    <div className="relative h-[10px] w-full border border-rule bg-paper-2">
-      <div
-        className="h-full origin-left animate-draw"
-        style={{ width: `${percent}%`, background: colour }}
-      />
-      {target > 0 && (
-        <span
-          className="absolute -top-1 bottom-[-4px] right-0 w-px bg-ink"
-          aria-hidden="true"
-        />
-      )}
+    <div className="flex flex-wrap items-center gap-8">
+      <div className="relative shrink-0" style={{ width: size, height: size }}>
+        <svg
+          viewBox="0 0 180 180"
+          width={size}
+          height={size}
+          role="img"
+          aria-label={`Total ${formatPaise(total)}, divided across ${positive
+            .map((s) => `${s.label} ${Math.round((s.amount / sum) * 100)} percent`)
+            .join(", ")}`}
+        >
+          <circle
+            cx="90"
+            cy="90"
+            r={radius}
+            fill="none"
+            stroke="var(--rule)"
+            strokeWidth="20"
+          />
+          {arcs.map((arc) => (
+            <circle
+              key={arc.label}
+              cx="90"
+              cy="90"
+              r={radius}
+              fill="none"
+              stroke={arc.colour}
+              strokeWidth="20"
+              strokeDasharray={arc.dasharray}
+              strokeDashoffset={arc.dashoffset}
+              transform="rotate(-90 90 90)"
+              className="animate-draw"
+              style={{ transformOrigin: "90px 90px" }}
+            />
+          ))}
+        </svg>
+        <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
+          <span className="annot">Total</span>
+          <span className="mt-1 font-serif text-[22px] leading-none">
+            {formatCompact(total)}
+          </span>
+        </div>
+      </div>
+
+      <ul className="min-w-[200px] flex-1 space-y-3">
+        {slices.map((slice) => {
+          const percent = Math.round((slice.amount / sum) * 100);
+          return (
+            <li key={slice.label} className="flex items-baseline justify-between gap-4">
+              <span className="flex min-w-0 items-baseline gap-2.5">
+                <span
+                  className="inline-block h-[10px] w-[10px] shrink-0"
+                  style={{ background: slice.colour }}
+                  aria-hidden="true"
+                />
+                <span className="truncate text-[14px]">{slice.label}</span>
+              </span>
+              <span className="flex shrink-0 items-baseline gap-3">
+                <Money paise={slice.amount} className="text-[14px]" />
+                <span className="w-10 text-right text-2xs tnum text-ink-3">
+                  {slice.amount > 0 ? `${percent}%` : "—"}
+                </span>
+              </span>
+            </li>
+          );
+        })}
+      </ul>
     </div>
   );
 }

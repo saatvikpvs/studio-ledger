@@ -1,8 +1,10 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
+import AreaEntryForm from "../components/AreaEntryForm";
 import { CategoryRules, MonthStrip } from "../components/Graphs";
 import {
   AREA_INK,
+  DeleteButton,
   Empty,
   ErrorNote,
   Figure,
@@ -13,12 +15,16 @@ import {
   Skeleton,
   Td,
   Th,
+  useToast,
 } from "../components/ui";
 import { api } from "../lib/api";
-import { formatDate, formatDateShort, humanise } from "../lib/money";
+import { formatDate, formatDateShort } from "../lib/money";
 import type { Overview, PersonalSummary, TransactionPage } from "../lib/types";
 
 export default function PersonalArea() {
+  const queryClient = useQueryClient();
+  const toast = useToast();
+
   const overview = useQuery<Overview>({
     queryKey: ["overview"],
     queryFn: () => api.get<Overview>("/overview"),
@@ -47,11 +53,20 @@ export default function PersonalArea() {
   const data = summary.data;
   const rows = entries.data?.items ?? [];
 
+  const deleteEntry = useMutation({
+    mutationFn: (id: number) =>
+      api.post(`/transactions/${id}/void?reason=Deleted+from+Personal`),
+    onSuccess: () => queryClient.invalidateQueries(),
+    onError: (error) => toast.push((error as Error).message, "error"),
+  });
+
   return (
     <>
       <PageTitle sub="Your own money — what comes in, what goes out, what is left. Nothing here touches a project or your savings.">
         Personal
       </PageTitle>
+
+      <AreaEntryForm area="personal" />
 
       <Section label="Standing" index="01">
         {!data || !area ? (
@@ -118,14 +133,14 @@ export default function PersonalArea() {
             body="Record an expense with the strip at the top of the page and it appears here."
           />
         ) : (
-          <Ledger min={640}>
+          <Ledger min={600}>
             <thead>
               <tr>
                 <Th>Date</Th>
                 <Th>Entry</Th>
                 <Th>Category</Th>
-                <Th>Kind</Th>
                 <Th right>Amount</Th>
+                <Th />
               </tr>
             </thead>
             <tbody>
@@ -148,14 +163,17 @@ export default function PersonalArea() {
                       </span>
                     </Td>
                     <Td className="text-ink-2">{alloc?.category_name ?? "—"}</Td>
-                    <Td className="whitespace-nowrap text-ink-3">
-                      {humanise(txn.kind)}
-                    </Td>
                     <Td right>
                       <Money
                         paise={signed}
                         exact
                         tone={txn.direction === "credit" ? "in" : "out"}
+                      />
+                    </Td>
+                    <Td right>
+                      <DeleteButton
+                        onClick={() => deleteEntry.mutate(txn.id)}
+                        disabled={deleteEntry.isPending}
                       />
                     </Td>
                   </tr>

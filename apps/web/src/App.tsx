@@ -6,12 +6,10 @@ import { Skeleton } from "./components/ui";
 import { api } from "./lib/api";
 import type { Owner } from "./lib/types";
 
-import Entries from "./pages/Entries";
 import Login from "./pages/Login";
 import Overview from "./pages/Overview";
 import PersonalArea from "./pages/PersonalArea";
 import ProjectDetail from "./pages/ProjectDetail";
-import Reconcile from "./pages/Reconcile";
 import Reports from "./pages/Reports";
 import SavingsArea from "./pages/SavingsArea";
 import Settings from "./pages/Settings";
@@ -50,8 +48,6 @@ export default function App() {
         <Route path="/studio" element={<StudioArea />} />
         <Route path="/savings" element={<SavingsArea />} />
         <Route path="/projects/:id" element={<ProjectDetail />} />
-        <Route path="/entries" element={<Entries />} />
-        <Route path="/reconcile" element={<Reconcile />} />
         <Route path="/reports" element={<Reports />} />
         <Route path="/settings" element={<Settings />} />
         <Route path="/login" element={<Navigate to="/" replace />} />

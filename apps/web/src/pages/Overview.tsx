@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 
-import SectionBar, { type Band } from "../components/SectionBar";
+import { AreaDonut, type DonutSlice } from "../components/Graphs";
 import {
   AREA_INK,
   Annot,
@@ -16,7 +16,6 @@ import {
   Skeleton,
   Td,
   Th,
-  cx,
 } from "../components/ui";
 import { api } from "../lib/api";
 import { formatDate, formatDateShort } from "../lib/money";
@@ -30,7 +29,7 @@ export default function Overview() {
 
   const recent = useQuery<TransactionPage>({
     queryKey: ["recent-entries"],
-    queryFn: () => api.get<TransactionPage>("/transactions", { limit: 12 }),
+    queryFn: () => api.get<TransactionPage>("/transactions", { limit: 10 }),
   });
 
   if (overview.isError) {
@@ -39,16 +38,22 @@ export default function Overview() {
 
   const data = overview.data;
 
-  const bands: Band[] = data
+  const slices: DonutSlice[] = data
     ? [
-        { area: "personal", label: "Personal", amount: data.personal.balance },
+        { label: "Personal", amount: data.personal.balance, colour: AREA_INK.personal },
         {
-          area: "professional",
           label: "Professional",
           amount: data.professional.balance,
+          colour: AREA_INK.professional,
         },
-        { area: "savings", label: "Savings", amount: data.savings.balance },
-        { area: "unassigned", label: "Unfiled", amount: data.unassigned.balance },
+        { label: "Savings", amount: data.savings.balance, colour: AREA_INK.savings },
+        ...(data.unassigned.balance !== 0
+          ? [{
+              label: "Unfiled",
+              amount: data.unassigned.balance,
+              colour: AREA_INK.unassigned,
+            }]
+          : []),
       ]
     : [];
 
@@ -57,7 +62,7 @@ export default function Overview() {
       <PageTitle
         sub={
           data
-            ? "One bank account, read three ways. The bands below are the balance itself — they always add up to it exactly."
+            ? "Everything you have, and how it divides between Personal, Professional and Savings."
             : undefined
         }
         right={
@@ -72,39 +77,41 @@ export default function Overview() {
         Overview
       </PageTitle>
 
-      {/* ============================================== 01 — the position */}
-      <Section label="Position" index="01">
+      {/* ============================================== 01 — the total */}
+      <Section label="Total money" index="01">
         {overview.isLoading || !data ? (
-          <Skeleton className="h-[150px]" />
+          <Skeleton className="h-[220px]" />
         ) : (
-          <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_210px]">
-            <SectionBar bands={bands} total={data.bank_balance} />
-            <div className="lg:border-l lg:border-rule lg:pl-8">
-              <Figure
-                label="In the bank"
-                paise={data.bank_balance}
-                size="md"
-                note={
-                  <>
-                    Across{" "}
-                    {data.accounts.map((account, index) => (
-                      <span key={account.id}>
-                        {index > 0 && ", "}
-                        {account.name}
-                      </span>
-                    ))}
-                  </>
-                }
-              />
+          <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
+            <Figure
+              label="You currently have"
+              paise={data.bank_balance}
+              size="lg"
+              note={
+                <>
+                  Across{" "}
+                  {data.accounts.map((account, index) => (
+                    <span key={account.id}>
+                      {index > 0 && ", "}
+                      {account.name}
+                    </span>
+                  ))}
+                  . Personal, Professional and Savings always add up to this
+                  figure exactly.
+                </>
+              }
+            />
+            <div className="lg:border-l lg:border-rule lg:pl-10">
+              <AreaDonut slices={slices} total={data.bank_balance} />
               {data.unassigned.count > 0 && (
                 <Link
-                  to="/reconcile"
+                  to="/settings"
                   className="mt-5 block border-l-2 border-ochre pl-3 transition-opacity hover:opacity-70"
                 >
                   <Annot className="text-ochre">Needs filing</Annot>
                   <div className="mt-0.5 text-[13px] leading-snug">
                     <span className="tnum">{data.unassigned.count}</span> entries
-                    are not yet assigned to an area.
+                    are not yet assigned to an area — see Settings › Import.
                   </div>
                 </Link>
               )}
@@ -150,37 +157,23 @@ export default function Overview() {
               title="Savings"
               balance={data.savings.balance}
               lines={[
-                ["Set aside", data.savings.contributed_month, "in"],
-                [
-                  "Toward goals",
-                  data.savings.goals.reduce((s, g) => s + g.target_amount, 0),
-                  "plain",
-                ],
+                ["Added", data.savings.in_month, "in"],
+                ["Withdrawn", data.savings.out_month, "out"],
+                ["Net", data.savings.net_month, "auto"],
               ]}
-              foot={`${data.savings.goal_count} ${
-                data.savings.goal_count === 1 ? "goal" : "goals"
-              }`}
             />
           </div>
         )}
       </Section>
 
       {/* ============================================== 03 — recent */}
-      <Section
-        label="Recent entries"
-        index="03"
-        action={
-          <Link to="/entries" className="btn-quiet">
-            All entries
-          </Link>
-        }
-      >
+      <Section label="Recent entries" index="03">
         {recent.isLoading ? (
           <Skeleton className="h-52" />
         ) : !recent.data?.items.length ? (
           <Empty
             title="Nothing recorded yet"
-            body="Use the strip above to record what you just spent. Amount, a word about what it was, and which area it belongs to."
+            body="Open Personal, Professional or Savings and use the strip at the top to record what you just spent or received."
           />
         ) : (
           <Ledger min={620}>

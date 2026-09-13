@@ -17,16 +17,7 @@ from sqlalchemy.orm import Session
 from .core.db import Base, SessionLocal, engine
 from .core.money import format_inr, to_paise
 from .core.security import hash_password
-from .models import (
-    Account,
-    AccountType,
-    Category,
-    Fund,
-    FundKind,
-    Owner,
-    SavingsGoal,
-    TxnKind,
-)
+from .models import Account, AccountType, Category, Owner, TxnKind
 from .services import ledger
 
 EMAIL = "studio@spatialanthology.in"
@@ -51,13 +42,6 @@ PROFESSIONAL = [
     ("Electrical", "#8A7A2E", True), ("Plumbing", "#3A5A7A", True),
     ("Studio — other", "#7A7A80", False),
 ]
-
-GOALS = [
-    ("Emergency fund", "3,00,000", None),
-    ("Studio equipment", "1,50,000", None),
-    ("Travel", "75,000", None),
-]
-
 
 def reset_database() -> None:
     Base.metadata.drop_all(bind=engine)
@@ -106,13 +90,7 @@ def setup(db: Session, opening_balance: str = "0") -> dict:
                                  reason="Opening balance")],
         )
 
-    for order, (name, target, due) in enumerate(GOALS):
-        fund = Fund(kind=FundKind.savings.value, name=name, sort_order=order)
-        db.add(fund)
-        db.flush()
-        db.add(SavingsGoal(name=name, fund_id=fund.id,
-                           target_amount=to_paise(target), target_date=due,
-                           sort_order=order))
+    ledger.savings_fund(db)  # pre-create it, so it shows up before first use
 
     db.commit()
     report = ledger.integrity_check(db)
@@ -123,7 +101,6 @@ def setup(db: Session, opening_balance: str = "0") -> dict:
         "opening_balance": format_inr(bank.opening_balance),
         "accounts": 3,
         "categories": len(PERSONAL) + len(PROFESSIONAL),
-        "savings_goals": len(GOALS),
         "integrity_ok": report["ok"],
     }
 

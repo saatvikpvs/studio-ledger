@@ -72,16 +72,13 @@ def personal_fund(db: Session) -> Fund:
     return fund
 
 
-def fund_for_goal(db: Session, goal_id: int, name: str) -> Fund:
-    """Savings goals own a fund, exactly as projects do."""
-    from ..models import SavingsGoal
-
-    goal = db.get(SavingsGoal, goal_id)
-    if goal is not None and goal.fund_id:
-        return db.get(Fund, goal.fund_id)
-    fund = Fund(kind=FundKind.savings.value, name=name)
-    db.add(fund)
-    db.flush()
+def savings_fund(db: Session) -> Fund:
+    """The single Savings area. Entries file straight into it, like Personal."""
+    fund = db.scalar(select(Fund).where(Fund.kind == FundKind.savings.value))
+    if fund is None:
+        fund = Fund(kind=FundKind.savings.value, name="Savings", is_system=True)
+        db.add(fund)
+        db.flush()
     return fund
 
 

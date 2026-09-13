@@ -294,6 +294,46 @@ export function Td({
   );
 }
 
+/* ---------------------------------------------------------------- delete */
+
+/**
+ * A small inline trash mark for deleting one row directly from a list — no
+ * separate management screen. Calls straight through to the void endpoint;
+ * "delete" is the right word for what the user experiences even though the
+ * row is soft-deleted underneath for the audit trail.
+ */
+export function DeleteButton({
+  onClick,
+  disabled,
+  label = "Delete this entry",
+}: {
+  onClick: () => void;
+  disabled?: boolean;
+  label?: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      aria-label={label}
+      title={label}
+      className="btn-danger p-1 text-ink-3 transition-colors disabled:opacity-30"
+    >
+      <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true">
+        <path
+          d="M3 4.5H13M6.5 4.5V2.8C6.5 2.36 6.86 2 7.3 2H8.7C9.14 2 9.5 2.36 9.5 2.8V4.5M6 7.5V11.5M10 7.5V11.5M4 4.5L4.6 13.1C4.64 13.6 5.06 14 5.56 14H10.44C10.94 14 11.36 13.6 11.4 13.1L12 4.5"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
+    </button>
+  );
+}
+
 /* ------------------------------------------------------------------ marks */
 
 /** A small keyed mark — the area a row belongs to, or a state. */
@@ -523,21 +563,24 @@ export function Segmented<T extends string>({
   onChange,
   options,
   colourise = false,
+  colours,
   className,
 }: {
   value: T;
   onChange: (value: T) => void;
   options: { value: T; label: string }[];
   colourise?: boolean;
+  /** Explicit per-option colour — e.g. Spent in rust, Received in sap. */
+  colours?: Partial<Record<T, string>>;
   className?: string;
 }) {
   return (
     <div className={cx("flex border border-rule", className)} role="group">
       {options.map((option, index) => {
         const active = option.value === value;
-        const ink = colourise
-          ? AREA_INK[option.value as Area] ?? "var(--ink)"
-          : "var(--ink)";
+        const ink =
+          colours?.[option.value] ??
+          (colourise ? AREA_INK[option.value as Area] ?? "var(--accent)" : "var(--accent)");
         return (
           <button
             key={option.value}

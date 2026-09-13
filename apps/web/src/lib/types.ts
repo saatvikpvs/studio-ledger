@@ -351,19 +351,6 @@ export interface FundTransfer {
 
 export type AreaKey = "personal" | "professional" | "savings";
 
-export interface SavingsGoal {
-  id: number;
-  fund_id: number;
-  name: string;
-  balance: number;
-  target_amount: number;
-  target_date: string | null;
-  note: string | null;
-  percent: number;
-  remaining: number;
-  is_archived?: boolean;
-}
-
 export interface PersonalArea {
   balance: number;
   in_month: number;
@@ -383,11 +370,13 @@ export interface ProfessionalArea {
   projects: ProjectSummary[];
 }
 
+/** A plain area now, entered exactly like Personal — no goals, no envelopes. */
 export interface SavingsArea {
   balance: number;
-  contributed_month: number;
-  goal_count: number;
-  goals: SavingsGoal[];
+  in_month: number;
+  out_month: number;
+  net_month: number;
+  fund_id: number;
 }
 
 export interface Overview {

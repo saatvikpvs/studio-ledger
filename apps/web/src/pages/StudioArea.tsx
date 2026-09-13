@@ -2,11 +2,13 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link } from "react-router-dom";
 
+import AreaEntryForm from "../components/AreaEntryForm";
 import { CategoryRules } from "../components/Graphs";
 import {
   AREA_INK,
   Annot,
   Bar,
+  DeleteButton,
   Empty,
   ErrorNote,
   Field,
@@ -22,13 +24,14 @@ import {
   useToast,
 } from "../components/ui";
 import { api } from "../lib/api";
-import { formatCompact, formatDateShort, rupeesToPaise } from "../lib/money";
+import { formatCompact, formatDateShort, humanise, rupeesToPaise } from "../lib/money";
 import type {
   CategorySlice,
   Client,
   ClientPayment,
   Overview,
   ProjectSummary,
+  TransactionPage,
 } from "../lib/types";
 
 export default function StudioArea() {
@@ -56,6 +59,18 @@ export default function StudioArea() {
     queryKey: ["category-breakdown", "project"],
     queryFn: () =>
       api.get<CategorySlice[]>("/charts/category-breakdown", { scope: "project" }),
+  });
+  const entries = useQuery<TransactionPage>({
+    queryKey: ["professional-entries"],
+    queryFn: () =>
+      api.get<TransactionPage>("/transactions", { fund_kind: "project", limit: 300 }),
+  });
+
+  const deleteEntry = useMutation({
+    mutationFn: (id: number) =>
+      api.post(`/transactions/${id}/void?reason=Deleted+from+Professional`),
+    onSuccess: () => queryClient.invalidateQueries(),
+    onError: (error) => toast.push((error as Error).message, "error"),
   });
 
   const createProject = useMutation({
@@ -102,6 +117,8 @@ export default function StudioArea() {
       >
         Professional
       </PageTitle>
+
+      <AreaEntryForm area="professional" />
 
       <Section label="Standing" index="01">
         {!area ? (
@@ -266,6 +283,67 @@ export default function StudioArea() {
               )}
             </div>
           </div>
+        )}
+      </Section>
+
+      <Section label="Entries" index="04">
+        {entries.isLoading ? (
+          <Skeleton className="h-64" />
+        ) : !entries.data?.items.length ? (
+          <Empty
+            title="No professional entries yet"
+            body="Record an expense or a client payment with the strip above and it appears here."
+          />
+        ) : (
+          <Ledger min={680}>
+            <thead>
+              <tr>
+                <Th>Date</Th>
+                <Th>Entry</Th>
+                <Th>Project</Th>
+                <Th>Category</Th>
+                <Th right>Amount</Th>
+                <Th />
+              </tr>
+            </thead>
+            <tbody>
+              {entries.data.items.map((txn) => {
+                const alloc = txn.allocations.find((a) => a.fund_kind === "project");
+                const signed =
+                  txn.direction === "credit"
+                    ? (alloc?.amount ?? 0)
+                    : -(alloc?.amount ?? 0);
+                return (
+                  <tr key={txn.id}>
+                    <Td className="whitespace-nowrap text-ink-3">
+                      {formatDateShort(txn.value_date)}
+                    </Td>
+                    <Td className="max-w-[280px]">
+                      <span className="block truncate" title={txn.description_raw}>
+                        {txn.description_norm || txn.description_raw}
+                      </span>
+                      <span className="text-3xs text-ink-3">{humanise(txn.kind)}</span>
+                    </Td>
+                    <Td className="text-ink-2">{alloc?.fund_name ?? "—"}</Td>
+                    <Td className="text-ink-2">{alloc?.category_name ?? "—"}</Td>
+                    <Td right>
+                      <Money
+                        paise={signed}
+                        exact
+                        tone={txn.direction === "credit" ? "in" : "out"}
+                      />
+                    </Td>
+                    <Td right>
+                      <DeleteButton
+                        onClick={() => deleteEntry.mutate(txn.id)}
+                        disabled={deleteEntry.isPending}
+                      />
+                    </Td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </Ledger>
         )}
       </Section>
 
