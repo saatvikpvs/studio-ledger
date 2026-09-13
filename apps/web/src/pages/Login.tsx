@@ -1,6 +1,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
+import { LogoMark } from "../components/LogoMark";
 import { Annot, Field } from "../components/ui";
 import { ApiError, api } from "../lib/api";
 
@@ -30,6 +31,7 @@ export default function Login() {
       {/* The sheet: a title block and nothing else. */}
       <div className="hidden flex-col justify-between border-r border-ink p-12 lg:flex">
         <div>
+          <LogoMark size={52} className="mb-4" />
           <div className="font-serif text-[34px] leading-none">Spatial</div>
           <div className="mt-1 font-sans text-xs uppercase tracking-wordmark text-ink-3">
             Anthology
@@ -72,6 +74,7 @@ export default function Login() {
       <div className="flex items-center justify-center p-8">
         <div className="w-full max-w-[320px]">
           <div className="lg:hidden">
+            <LogoMark size={40} className="mb-3" />
             <div className="font-serif text-[26px] leading-none">Spatial</div>
             <div className="mt-1 font-sans text-xs uppercase tracking-wordmark text-ink-3">
               Anthology

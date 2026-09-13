@@ -6,6 +6,7 @@ import { api } from "../lib/api";
 import { formatDate } from "../lib/money";
 import type { Integrity, Overview, Owner } from "../lib/types";
 import QuickEntry from "./QuickEntry";
+import { LogoMark } from "./LogoMark";
 import { AREA_INK, Annot, cx } from "./ui";
 
 const AREAS = [
@@ -69,7 +70,8 @@ export default function Shell({ children }: { children: React.ReactNode }) {
       <header className="no-print border-b border-ink">
         <div className="sheet flex items-stretch justify-between gap-6">
           {/* wordmark */}
-          <NavLink to="/" className="group flex shrink-0 items-center py-4">
+          <NavLink to="/" className="group flex shrink-0 items-center gap-2.5 py-4">
+            <LogoMark size={26} />
             <span className="block">
               <span className="block font-serif text-[19px] leading-none">
                 {family}
