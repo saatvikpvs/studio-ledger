@@ -8,7 +8,7 @@ from ...core.config import settings
 from ...core.db import get_db
 from ...core.security import require_owner
 from ...ingest.parsers.statement import SYNONYMS, StatementError
-from ...models import Account, ImportBatch, StagedRow
+from ...models import Account, ImportBatch, StagedRow, StagedState, Transaction
 from ...schemas import ImportBatchOut, MappingIn, StagedRowPatch
 from ...services import importer
 
@@ -161,6 +161,51 @@ def patch_row(row_id: int, body: StagedRowPatch, db: Session = Depends(get_db)):
 
     db.commit()
     return {"id": row.id, "include": row.include, "suggestion": row.suggestion}
+
+
+@router.post("/rows/{row_id}/link")
+def link_row_to_manual(row_id: int, db: Session = Depends(get_db)):
+    """Confirm that a statement row is one you already entered by hand.
+
+    The row is not imported -- that would double the expense. Instead the bank's
+    reference is copied onto your entry, so it is now backed by the statement.
+    """
+    row = db.get(StagedRow, row_id)
+    if row is None:
+        raise HTTPException(404, "No such row")
+    if not row.dup_of_txn_id:
+        raise HTTPException(400, "This row has nothing to link to")
+
+    txn = db.get(Transaction, row.dup_of_txn_id)
+    if txn is None:
+        raise HTTPException(404, "The matching transaction no longer exists")
+
+    reference = (row.parsed or {}).get("reference")
+    if reference and not txn.external_ref:
+        txn.external_ref = reference
+    txn.source = "manual+statement"
+    row.include = False
+    row.state = StagedState.manual_match.value
+    db.commit()
+
+    return {
+        "linked_to": txn.id,
+        "message": f"Matched to your entry of {txn.value_date.isoformat()}. "
+                   "It was not imported again.",
+    }
+
+
+@router.post("/rows/{row_id}/unlink")
+def unlink_row(row_id: int, db: Session = Depends(get_db)):
+    """Say this statement row is *not* the manual entry we matched it to."""
+    row = db.get(StagedRow, row_id)
+    if row is None:
+        raise HTTPException(404, "No such row")
+    row.state = StagedState.new.value
+    row.dup_of_txn_id = None
+    row.include = True
+    db.commit()
+    return {"id": row.id, "state": row.state, "include": row.include}
 
 
 @router.post("/{batch_id}/commit")

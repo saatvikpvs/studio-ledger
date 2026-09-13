@@ -2,12 +2,16 @@ import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 
 import {
-  Card,
-  EmptyState,
-  ErrorState,
+  Annot,
+  Empty,
+  ErrorNote,
+  Ledger,
   Money,
-  PageHeader,
+  PageTitle,
+  Section,
   Skeleton,
+  Td,
+  Th,
   cx,
   useToast,
 } from "../components/ui";
@@ -19,20 +23,20 @@ interface ReportMeta {
   title: string;
 }
 
-const DESCRIPTIONS: Record<string, string> = {
+const NOTES: Record<string, string> = {
   project_expenses: "Every rupee spent on a project, by category — the one you show the client.",
   project_summary: "Received, spent, in hand, budget variance, fee earned and margin.",
   client_payments: "All payments received, with references and dates.",
   personal_expenses: "Your own spending by category and month.",
-  monthly_statement: "Cash in, cash out and net, month by month.",
-  category_analysis: "Spend by category across projects and personal life.",
-  vendor_report: "Total paid per counterparty — useful for negotiation and tax.",
-  fund_statement: "A running ledger of one fund. The proof behind every dashboard figure.",
+  monthly_statement: "Money in, money out and net, month by month.",
+  category_analysis: "Spend by category across the studio and personal life.",
+  vendor_report: "Total paid per payee — useful for negotiation and at tax time.",
+  fund_statement: "A running ledger of one area. The proof behind every figure.",
 };
 
 export default function Reports() {
   const toast = useToast();
-  const [active, setActive] = useState("project_summary");
+  const [active, setActive] = useState("monthly_statement");
   const [filters, setFilters] = useState({
     date_from: "",
     date_to: "",
@@ -44,17 +48,14 @@ export default function Reports() {
     queryKey: ["reports"],
     queryFn: () => api.get<ReportMeta[]>("/reports"),
   });
-
   const projects = useQuery<ProjectSummary[]>({
     queryKey: ["projects", ""],
     queryFn: () => api.get<ProjectSummary[]>("/projects"),
   });
-
   const funds = useQuery<Fund[]>({
     queryKey: ["funds"],
     queryFn: () => api.get<Fund[]>("/funds"),
   });
-
   const report = useQuery<Report>({
     queryKey: ["report", active, filters],
     queryFn: () => api.get<Report>(`/reports/${active}`, filters),
@@ -77,206 +78,181 @@ export default function Reports() {
 
   return (
     <>
-      <PageHeader
-        title="Reports"
-        subtitle="Filter, read, and export. Every figure traces back to the ledger."
+      <PageTitle
+        sub="Filter, read, export. Every figure traces back to an entry you can open."
+        right={
+          <>
+            <button className="btn-line" onClick={() => download("csv")} disabled={!data}>
+              CSV
+            </button>
+            <button className="btn-line" onClick={() => download("xlsx")} disabled={!data}>
+              Excel
+            </button>
+            <button className="btn-solid" onClick={() => window.print()} disabled={!data}>
+              Print
+            </button>
+          </>
+        }
       >
-        <button className="btn-ghost" onClick={() => download("csv")} disabled={!data}>
-          Export CSV
-        </button>
-        <button className="btn-ghost" onClick={() => download("xlsx")} disabled={!data}>
-          Export Excel
-        </button>
-        <button className="btn-primary" onClick={() => window.print()} disabled={!data}>
-          Print / PDF
-        </button>
-      </PageHeader>
+        Reports
+      </PageTitle>
 
-      <div className="grid gap-3 lg:grid-cols-[250px_minmax(0,1fr)]">
-        <div className="space-y-3">
-          <Card padded={false}>
-            <ul className="p-2">
-              {(list.data ?? []).map((meta) => (
-                <li key={meta.key}>
-                  <button
-                    onClick={() => setActive(meta.key)}
-                    className={cx(
-                      "w-full rounded-md px-2.5 py-2 text-left text-[13px] transition-colors",
-                      active === meta.key
-                        ? "bg-accent-soft font-medium text-accent"
-                        : "text-ink-2 hover:bg-surface-2 hover:text-ink",
-                    )}
-                  >
-                    {meta.title}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </Card>
-
-          <Card>
-            <span className="label mb-2 block">Filters</span>
-            <div className="space-y-2.5">
-              <label className="block">
-                <span className="mb-1 block text-2xs text-ink-3">From</span>
-                <input
-                  type="date"
-                  className="field"
-                  value={filters.date_from}
-                  onChange={(e) =>
-                    setFilters((f) => ({ ...f, date_from: e.target.value }))
-                  }
-                />
-              </label>
-              <label className="block">
-                <span className="mb-1 block text-2xs text-ink-3">To</span>
-                <input
-                  type="date"
-                  className="field"
-                  value={filters.date_to}
-                  onChange={(e) => setFilters((f) => ({ ...f, date_to: e.target.value }))}
-                />
-              </label>
-              <label className="block">
-                <span className="mb-1 block text-2xs text-ink-3">Project</span>
-                <select
-                  className="field"
-                  value={filters.project_id}
-                  onChange={(e) =>
-                    setFilters((f) => ({ ...f, project_id: e.target.value }))
-                  }
+      <div className="grid gap-10 border-t border-rule pt-8 lg:grid-cols-[210px_minmax(0,1fr)]">
+        {/* index */}
+        <div className="no-print">
+          <Annot className="mb-3">Index</Annot>
+          <ul className="border-t border-rule-soft">
+            {(list.data ?? []).map((meta) => (
+              <li key={meta.key}>
+                <button
+                  onClick={() => setActive(meta.key)}
+                  className={cx(
+                    "w-full border-b border-rule-soft py-2 text-left text-[13px] transition-colors",
+                    active === meta.key ? "text-ink" : "text-ink-3 hover:text-ink",
+                  )}
                 >
-                  <option value="">All projects</option>
-                  {(projects.data ?? []).map((p) => (
-                    <option key={p.project_id} value={p.project_id}>
-                      {p.name}
+                  {meta.title}
+                </button>
+              </li>
+            ))}
+          </ul>
+
+          <Annot className="mb-3 mt-8">Filters</Annot>
+          <div className="space-y-3">
+            <label className="block">
+              <span className="mb-1 block text-3xs text-ink-3">From</span>
+              <input
+                type="date"
+                className="field-underline text-[13px]"
+                value={filters.date_from}
+                onChange={(e) => setFilters((f) => ({ ...f, date_from: e.target.value }))}
+              />
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-3xs text-ink-3">To</span>
+              <input
+                type="date"
+                className="field-underline text-[13px]"
+                value={filters.date_to}
+                onChange={(e) => setFilters((f) => ({ ...f, date_to: e.target.value }))}
+              />
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-3xs text-ink-3">Project</span>
+              <select
+                className="field-underline text-[13px]"
+                value={filters.project_id}
+                onChange={(e) => setFilters((f) => ({ ...f, project_id: e.target.value }))}
+              >
+                <option value="">All</option>
+                {(projects.data ?? []).map((p) => (
+                  <option key={p.project_id} value={p.project_id}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {active === "fund_statement" && (
+              <label className="block">
+                <span className="mb-1 block text-3xs text-ink-3">Area</span>
+                <select
+                  className="field-underline text-[13px]"
+                  value={filters.fund_id}
+                  onChange={(e) => setFilters((f) => ({ ...f, fund_id: e.target.value }))}
+                >
+                  <option value="">Personal</option>
+                  {(funds.data ?? []).map((fund) => (
+                    <option key={fund.id} value={fund.id}>
+                      {fund.name}
                     </option>
                   ))}
                 </select>
               </label>
-              {active === "fund_statement" && (
-                <label className="block">
-                  <span className="mb-1 block text-2xs text-ink-3">Fund</span>
-                  <select
-                    className="field"
-                    value={filters.fund_id}
-                    onChange={(e) =>
-                      setFilters((f) => ({ ...f, fund_id: e.target.value }))
-                    }
-                  >
-                    <option value="">Personal</option>
-                    {(funds.data ?? []).map((fund) => (
-                      <option key={fund.id} value={fund.id}>
-                        {fund.name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              )}
-              <button
-                className="btn-ghost btn-sm w-full"
-                onClick={() =>
-                  setFilters({ date_from: "", date_to: "", project_id: "", fund_id: "" })
-                }
-              >
-                Clear filters
-              </button>
-            </div>
-          </Card>
+            )}
+            <button
+              className="btn-quiet"
+              onClick={() =>
+                setFilters({ date_from: "", date_to: "", project_id: "", fund_id: "" })
+              }
+            >
+              Clear filters
+            </button>
+          </div>
         </div>
 
-        <div>
+        {/* the report */}
+        <div className="min-w-0">
           {report.isError ? (
-            <ErrorState error={report.error} onRetry={() => report.refetch()} />
+            <ErrorNote error={report.error} onRetry={() => report.refetch()} />
           ) : report.isLoading || !data ? (
             <Skeleton className="h-96" />
           ) : (
-            <Card padded={false}>
-              <div className="border-b border-line-soft p-5">
-                <h2 className="font-semibold tracking-tight">{data.title}</h2>
-                <p className="mt-1 text-[12px] text-ink-3">
-                  {DESCRIPTIONS[data.key] ?? ""}
+            <>
+              <div className="mb-6 border-b border-rule pb-4">
+                <h2 className="font-serif text-[24px] leading-tight">{data.title}</h2>
+                <p className="mt-1.5 max-w-measure text-[13px] text-ink-2">
+                  {NOTES[data.key] ?? ""}
                 </p>
-                <p className="mt-1 font-mono text-2xs text-ink-3">
+                <div className="annot mt-2">
                   {data.rows.length} rows · generated {data.generated_at.slice(0, 10)}
-                </p>
+                </div>
               </div>
 
               {!data.rows.length ? (
-                <EmptyState
+                <Empty
                   title="Nothing in this period"
-                  message="Widen the date range or clear the project filter."
+                  body="Widen the date range or clear the project filter."
                 />
               ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full border-collapse">
-                    <thead>
-                      <tr>
+                <Ledger min={620}>
+                  <thead>
+                    <tr>
+                      {data.columns.map((column) => (
+                        <Th key={column.key} right={column.type === "money"}>
+                          {column.label}
+                        </Th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.rows.map((row, index) => (
+                      <tr key={index}>
                         {data.columns.map((column) => (
-                          <th
-                            key={column.key}
-                            className={cx(
-                              "label whitespace-nowrap border-b border-line bg-surface-2 px-3 py-2 font-medium",
-                              column.type === "money" ? "text-right" : "text-left",
+                          <Td key={column.key} right={column.type === "money"}>
+                            {column.type === "money" ? (
+                              <Money paise={Number(row[column.key] ?? 0)} exact />
+                            ) : (
+                              String(row[column.key] ?? "—")
                             )}
-                          >
-                            {column.label}
-                          </th>
+                          </Td>
                         ))}
                       </tr>
-                    </thead>
-                    <tbody>
-                      {data.rows.map((row, index) => (
-                        <tr key={index}>
-                          {data.columns.map((column) => (
-                            <td
-                              key={column.key}
-                              className={cx(
-                                "border-b border-line-soft px-3 py-2 text-[13px]",
-                                column.type === "money"
-                                  ? "whitespace-nowrap text-right"
-                                  : "",
-                              )}
-                            >
-                              {column.type === "money" ? (
-                                <Money paise={Number(row[column.key] ?? 0)} exact />
-                              ) : (
-                                String(row[column.key] ?? "—")
-                              )}
-                            </td>
-                          ))}
-                        </tr>
-                      ))}
-                    </tbody>
-                    {Object.keys(data.totals).length > 0 && (
-                      <tfoot>
-                        <tr className="bg-surface-2">
-                          {data.columns.map((column, index) => (
-                            <td
-                              key={column.key}
-                              className={cx(
-                                "border-t border-line px-3 py-2.5 text-[13px] font-semibold",
-                                column.type === "money"
-                                  ? "whitespace-nowrap text-right"
-                                  : "",
-                              )}
-                            >
-                              {index === 0
-                                ? "Total"
-                                : data.totals[column.key] !== undefined
-                                  ? column.type === "money"
-                                    ? <Money paise={data.totals[column.key]} exact />
-                                    : data.totals[column.key]
-                                  : ""}
-                            </td>
-                          ))}
-                        </tr>
-                      </tfoot>
-                    )}
-                  </table>
-                </div>
+                    ))}
+                  </tbody>
+                  {Object.keys(data.totals).length > 0 && (
+                    <tfoot>
+                      <tr>
+                        {data.columns.map((column, index) => (
+                          <Td
+                            key={column.key}
+                            right={column.type === "money"}
+                            className="border-t border-ink font-medium"
+                          >
+                            {index === 0
+                              ? "Total"
+                              : data.totals[column.key] !== undefined
+                                ? column.type === "money"
+                                  ? <Money paise={data.totals[column.key]} exact />
+                                  : data.totals[column.key]
+                                : ""}
+                          </Td>
+                        ))}
+                      </tr>
+                    </tfoot>
+                  )}
+                </Ledger>
               )}
-            </Card>
+            </>
           )}
         </div>
       </div>

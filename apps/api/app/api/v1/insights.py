@@ -35,6 +35,12 @@ router = APIRouter(tags=["insights"], dependencies=[Depends(require_owner)])
 # dashboard & charts
 # --------------------------------------------------------------------------
 
+@router.get("/overview")
+def overview(as_of: date | None = None, db: Session = Depends(get_db)):
+    """Personal, Professional and Savings in one call."""
+    return analytics.overview(db, as_of)
+
+
 @router.get("/dashboard/summary")
 def dashboard(as_of: date | None = None, db: Session = Depends(get_db)):
     return analytics.dashboard_summary(db, as_of)
@@ -79,7 +85,8 @@ def personal_summary(db: Session = Depends(get_db)):
         "spent_this_fy": analytics._fund_spend(db, fund.id, fy_start, today),
         "fiscal_year": {"start": fy_start.isoformat(), "end": fy_end.isoformat()},
         "breakdown": analytics.category_breakdown(db, scope="personal"),
-        "monthly": analytics.monthly_flows(db, 12),
+        # Personal-only, not every account — see monthly_flows_for_funds.
+        "monthly": analytics.monthly_flows_for_funds(db, [fund.id], 12),
     }
 
 

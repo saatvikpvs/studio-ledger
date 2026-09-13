@@ -2,31 +2,32 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
-import { BulletBar, CategoryBars } from "../components/charts";
+import { CategoryRules } from "../components/Graphs";
 import {
-  Card,
-  Chip,
-  ErrorState,
+  AREA_INK,
+  Annot,
+  Bar,
+  ErrorNote,
   Field,
+  Figure,
+  Ledger,
+  Mark,
   Modal,
   Money,
-  PageHeader,
-  ProgressBar,
-  SectionTitle,
+  PageTitle,
+  Section,
   Skeleton,
   Td,
   Th,
-  cx,
   useToast,
 } from "../components/ui";
 import { api } from "../lib/api";
-import { formatDate, humanise, rupeesToPaise } from "../lib/money";
+import { formatDate, formatDateShort, humanise, rupeesToPaise } from "../lib/money";
 import type {
   CategorySlice,
   ClientPayment,
   Fund,
   ProjectSummary,
-  Transaction,
   TransactionPage,
 } from "../lib/types";
 
@@ -50,12 +51,12 @@ export default function ProjectDetail() {
     enabled: Boolean(id),
   });
 
-  const expenses = useQuery<TransactionPage>({
-    queryKey: ["project-expenses", detail.data?.fund_id],
+  const entries = useQuery<TransactionPage>({
+    queryKey: ["project-entries", detail.data?.fund_id],
     queryFn: () =>
       api.get<TransactionPage>("/transactions", {
         fund_id: detail.data?.fund_id,
-        limit: 100,
+        limit: 200,
       }),
     enabled: Boolean(detail.data?.fund_id),
   });
@@ -76,234 +77,222 @@ export default function ProjectDetail() {
   });
 
   if (detail.isError) {
-    return <ErrorState error={detail.error} onRetry={() => detail.refetch()} />;
+    return <ErrorNote error={detail.error} onRetry={() => detail.refetch()} />;
   }
   if (detail.isLoading || !detail.data) {
-    return (
-      <>
-        <Skeleton className="mb-6 h-10 w-72" />
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <Skeleton key={i} className="h-[92px]" />
-          ))}
-        </div>
-      </>
-    );
+    return <Skeleton className="mt-10 h-64" />;
   }
 
   const { summary, breakdown, payments, fund_id, project } = detail.data;
   const personalFund = funds.data?.find((f) => f.kind === "personal");
-  const tone =
-    summary.alert === "critical" ? "neg" : summary.alert === "warning" ? "warn" : "accent";
-
-  const debits = (expenses.data?.items ?? []).filter((t) => t.direction === "debit");
+  const debits = (entries.data?.items ?? []).filter((t) => t.direction === "debit");
 
   return (
     <>
-      <div className="mb-1">
-        <Link to="/projects" className="text-[12px] text-ink-3 hover:text-accent">
-          ← Projects
+      <div className="pt-8">
+        <Link to="/studio" className="btn-quiet">
+          ← Professional
         </Link>
       </div>
 
-      <PageHeader
-        title={summary.name}
-        subtitle={[summary.client_name, summary.location, summary.project_type]
+      <PageTitle
+        sub={[summary.client_name, summary.location, summary.project_type]
           .filter(Boolean)
           .join(" · ")}
+        right={
+          <>
+            <Mark
+              colour={
+                summary.alert === "critical"
+                  ? "var(--oxide)"
+                  : summary.alert === "warning"
+                    ? "var(--ochre)"
+                    : AREA_INK.professional
+              }
+            >
+              {humanise(summary.status)}
+            </Mark>
+            <button
+              className="btn-line"
+              onClick={() => setDrawing(true)}
+              disabled={summary.in_hand <= 0}
+            >
+              Draw fee
+            </button>
+          </>
+        }
       >
-        <Chip
-          tone={
-            summary.alert === "critical"
-              ? "neg"
-              : summary.alert === "warning"
-                ? "warn"
-                : "pos"
-          }
-        >
-          {humanise(summary.status)}
-        </Chip>
-        <button
-          className="btn-ghost"
-          onClick={() => setDrawing(true)}
-          disabled={summary.in_hand <= 0}
-        >
-          Draw fee
-        </button>
-      </PageHeader>
+        {summary.name}
+      </PageTitle>
 
-      {/* --------------------------------------------------- the three figures */}
-      <Card className="mb-3">
-        <div className="grid gap-6 lg:grid-cols-[1.2fr_1fr]">
+      <Section label="Standing" index="01">
+        <div className="grid gap-10 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
           <div>
-            <div className="mb-4 grid grid-cols-3 gap-4">
-              <div>
-                <div className="label">Received</div>
-                <div className="mt-0.5 text-xl font-semibold">
-                  <Money paise={summary.received} />
-                </div>
-              </div>
-              <div>
-                <div className="label">Spent</div>
-                <div className="mt-0.5 text-xl font-semibold">
-                  <Money paise={summary.spent} />
-                </div>
-              </div>
-              <div>
-                <div className="label">In hand</div>
-                <div className="mt-0.5 text-xl font-semibold">
-                  <Money paise={summary.in_hand} />
-                </div>
-              </div>
+            <div className="grid grid-cols-3 gap-6">
+              <Figure label="Received" paise={summary.received} size="sm" />
+              <Figure label="Spent" paise={summary.spent} size="sm" />
+              <Figure label="In hand" paise={summary.in_hand} size="sm" />
             </div>
 
-            <ProgressBar percent={summary.percent_of_received} tone={tone} height={10} />
-            <div className="mt-2 flex justify-between text-2xs text-ink-3">
-              <span className="tabular">
-                {Math.round(summary.percent_of_received)}% of money received
-              </span>
-              <span className="tabular">
-                {Math.round(summary.percent_of_budget)}% of budget
-              </span>
+            <div className="mt-6">
+              <Bar
+                percent={summary.percent_of_received}
+                over={summary.percent_of_received > 100}
+                height={10}
+                colour={
+                  summary.alert === "critical"
+                    ? "var(--oxide)"
+                    : summary.alert === "warning"
+                      ? "var(--ochre)"
+                      : AREA_INK.professional
+                }
+              />
+              <div className="mt-2 flex justify-between text-3xs uppercase tracking-annot text-ink-3">
+                <span>{Math.round(summary.percent_of_received)}% of money received</span>
+                <span>{Math.round(summary.percent_of_budget)}% of budget</span>
+              </div>
             </div>
 
             {summary.drawn > 0 && (
-              <p className="mt-3 rounded-md border border-line-soft bg-surface-2 px-3 py-2 text-[12px] text-ink-2">
-                <Money paise={summary.drawn} className="font-medium" /> has been
-                drawn from this project to Personal as your fee. That is why
-                <em> in hand</em> is lower than received minus spent — no bank
-                transaction was involved.
+              <p className="mt-5 max-w-measure border-l-2 border-rule pl-3 text-2xs leading-relaxed text-ink-2">
+                <Money paise={summary.drawn} /> has been drawn from this project to
+                Personal as your fee. That is why <em>in hand</em> is lower than
+                received minus spent — no bank transaction was involved.
               </p>
             )}
           </div>
 
-          {/* "Remaining" is three different questions. Answer all three. */}
-          <div className="space-y-3 lg:border-l lg:border-line-soft lg:pl-6">
-            <Row
+          <dl className="space-y-3.5 lg:border-l lg:border-rule lg:pl-10">
+            <Line
               label="Cash still in hand"
               value={summary.in_hand}
-              hint="Can you pay the contractor tomorrow?"
+              note="Can you pay the contractor tomorrow?"
             />
-            <Row
+            <Line
               label="Budget headroom"
               value={summary.headroom}
-              hint={`Budget ${(summary.budget / 100).toLocaleString("en-IN")} less spend`}
+              note={`Budget ${(summary.budget / 100).toLocaleString("en-IN")} less spend`}
             />
-            <Row
+            <Line
               label="Client still owes"
               value={summary.receivable}
-              hint={`Expected ${(summary.expected_total / 100).toLocaleString("en-IN")} in total`}
+              note={`Expected ${(summary.expected_total / 100).toLocaleString("en-IN")} in total`}
             />
-            <div className="border-t border-line-soft pt-3">
-              <Row
+            <div className="border-t border-rule-soft pt-3.5">
+              <Line
                 label="Fee earned to date"
                 value={summary.fee_earned}
-                hint={
+                note={
                   project.fee_model === "percent_of_cost"
                     ? `${project.fee_percent}% of cost incurred`
                     : "Recognised against progress"
                 }
               />
               {summary.own_costs > 0 && (
-                <Row
-                  label="Margin after own costs"
-                  value={summary.margin}
-                  hint={`${(summary.own_costs / 100).toLocaleString("en-IN")} of non-reimbursable spend`}
-                />
+                <div className="mt-3.5">
+                  <Line
+                    label="Margin after own costs"
+                    value={summary.margin}
+                    note={`${(summary.own_costs / 100).toLocaleString("en-IN")} borne by the studio`}
+                  />
+                </div>
               )}
             </div>
-          </div>
+          </dl>
         </div>
-      </Card>
+      </Section>
 
-      <div className="grid gap-3 lg:grid-cols-2">
-        <Card>
-          <SectionTitle>Where the money went</SectionTitle>
-          <CategoryBars data={breakdown} limit={12} />
-        </Card>
-
-        <Card>
-          <SectionTitle>Budget against actual</SectionTitle>
-          <div className="mt-6">
-            <BulletBar
-              spent={summary.spent}
-              received={summary.received}
-              budget={summary.budget}
-            />
-            <div className="mt-3 space-y-1.5 text-[12px]">
-              <Legend colour="bg-accent" label="Spent" value={summary.spent} />
-              <Legend colour="bg-accent/25" label="Received" value={summary.received} />
-              <Legend colour="bg-ink" label="Budget" value={summary.budget} />
-            </div>
-          </div>
-
-          <SectionTitle>
-            <span className="mt-6 block">Client payments</span>
-          </SectionTitle>
-          {payments.length ? (
-            <ul className="space-y-2">
-              {payments.map((payment, index) => (
-                <li
-                  key={index}
-                  className="flex items-baseline justify-between gap-3 border-b border-line-soft pb-2 text-[12px] last:border-0"
-                >
-                  <span>
-                    <span className="block text-ink-2">{formatDate(payment.date)}</span>
-                    {payment.reference && (
-                      <span className="block font-mono text-2xs text-ink-3">
-                        {payment.reference}
+      <Section label="Where the money went" index="02">
+        <div className="grid gap-10 lg:grid-cols-2">
+          <CategoryRules data={breakdown} limit={12} accent={AREA_INK.professional} />
+          <div className="lg:border-l lg:border-rule lg:pl-10">
+            <Annot className="mb-3">Client payments</Annot>
+            {payments.length ? (
+              <div className="border-t border-rule-soft">
+                {payments.map((payment, index) => (
+                  <div
+                    key={index}
+                    className="flex items-baseline justify-between gap-4 border-b border-rule-soft py-2"
+                  >
+                    <span className="min-w-0">
+                      <span className="block text-[13px]">
+                        {formatDate(payment.date)}
                       </span>
-                    )}
-                  </span>
-                  <Money paise={payment.amount} className="font-medium" />
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="text-[13px] text-ink-3">No payments recorded yet.</p>
-          )}
-        </Card>
-      </div>
-
-      <Card className="mt-3" padded={false}>
-        <div className="p-5 pb-0">
-          <SectionTitle>Expenses on this project</SectionTitle>
+                      {payment.reference && (
+                        <span className="block text-3xs text-ink-3">
+                          {payment.reference}
+                        </span>
+                      )}
+                    </span>
+                    <Money paise={payment.amount} tone="in" />
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-[13px] text-ink-3">No payments recorded yet.</p>
+            )}
+          </div>
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[640px] border-collapse">
+      </Section>
+
+      <Section label="Expenses" index="03">
+        {!debits.length ? (
+          <p className="text-[13px] text-ink-3">Nothing spent on this project yet.</p>
+        ) : (
+          <Ledger min={640}>
             <thead>
               <tr>
                 <Th>Date</Th>
-                <Th>Description</Th>
+                <Th>Entry</Th>
                 <Th>Category</Th>
                 <Th>Kind</Th>
                 <Th right>Amount</Th>
               </tr>
             </thead>
             <tbody>
-              {debits.map((txn) => (
-                <ExpenseRow key={txn.id} txn={txn} fundId={fund_id} />
-              ))}
-              {!debits.length && (
-                <tr>
-                  <Td className="py-8 text-center text-ink-3">
-                    Nothing spent on this project yet.
-                  </Td>
-                  <Td /> <Td /> <Td /> <Td />
-                </tr>
-              )}
+              {debits.map((txn) => {
+                const share = txn.allocations
+                  .filter((a) => a.fund_id === fund_id)
+                  .reduce((sum, a) => sum + a.amount, 0);
+                const category = txn.allocations.find(
+                  (a) => a.fund_id === fund_id,
+                )?.category_name;
+                return (
+                  <tr key={txn.id}>
+                    <Td className="whitespace-nowrap text-ink-3">
+                      {formatDateShort(txn.value_date)}
+                    </Td>
+                    <Td className="max-w-[300px]">
+                      <span className="block truncate" title={txn.description_raw}>
+                        {txn.description_norm || txn.description_raw}
+                      </span>
+                      {txn.allocations.length > 1 && (
+                        <span className="text-3xs text-ink-3">
+                          split across {txn.allocations.length} areas
+                        </span>
+                      )}
+                    </Td>
+                    <Td className="text-ink-2">{category ?? "—"}</Td>
+                    <Td className="text-ink-3">{humanise(txn.kind)}</Td>
+                    <Td right>
+                      <Money paise={share} exact tone="out" />
+                    </Td>
+                  </tr>
+                );
+              })}
             </tbody>
-          </table>
-        </div>
-      </Card>
+          </Ledger>
+        )}
+      </Section>
 
       <Modal
         open={drawing}
         onClose={() => setDrawing(false)}
         title="Draw your fee"
-        description="Moves money from this project's fund to Personal. No bank transaction is created — the bank never sees this."
+        note="Moves money from this project to Personal. No bank transaction is created."
       >
         <form
+          className="space-y-4"
           onSubmit={(event) => {
             event.preventDefault();
             const form = new FormData(event.currentTarget);
@@ -321,23 +310,20 @@ export default function ProjectDetail() {
               note: String(form.get("note") || ""),
             });
           }}
-          className="space-y-4"
         >
-          <div className="rounded-md border border-line-soft bg-surface-2 px-3 py-2.5 text-[12px] text-ink-2">
-            Fee earned to date: <Money paise={summary.fee_earned} className="font-medium" />
+          <p className="border-l-2 border-rule pl-3 text-2xs text-ink-2">
+            Fee earned to date <Money paise={summary.fee_earned} />
             {summary.drawn > 0 && (
               <>
-                {" · "}already drawn:{" "}
-                <Money paise={summary.drawn} className="font-medium" />
+                {" · "}already drawn <Money paise={summary.drawn} />
               </>
             )}
-          </div>
+          </p>
           <Field label="Amount">
             <input
               name="amount"
               className="field"
               required
-              placeholder="1,00,000"
               defaultValue={
                 summary.fee_earned > summary.drawn
                   ? String((summary.fee_earned - summary.drawn) / 100)
@@ -357,12 +343,12 @@ export default function ProjectDetail() {
           <Field label="Note">
             <input name="note" className="field" placeholder="Stage 1 design fee" />
           </Field>
-          <div className="flex justify-end gap-2">
-            <button type="button" className="btn-ghost" onClick={() => setDrawing(false)}>
+          <div className="flex justify-end gap-3 border-t border-rule pt-4">
+            <button type="button" className="btn-line" onClick={() => setDrawing(false)}>
               Cancel
             </button>
-            <button type="submit" className="btn-primary" disabled={drawFee.isPending}>
-              {drawFee.isPending ? "Moving…" : "Draw fee"}
+            <button type="submit" className="btn-solid" disabled={drawFee.isPending}>
+              Draw fee
             </button>
           </div>
         </form>
@@ -371,71 +357,22 @@ export default function ProjectDetail() {
   );
 }
 
-function Row({
+function Line({
   label,
   value,
-  hint,
+  note,
 }: {
   label: string;
   value: number;
-  hint: string;
+  note: string;
 }) {
   return (
     <div className="flex items-baseline justify-between gap-4">
       <div className="min-w-0">
-        <div className="text-[13px] text-ink-2">{label}</div>
-        <div className="text-2xs text-ink-3">{hint}</div>
+        <dt className="text-[13px] text-ink-2">{label}</dt>
+        <dd className="text-3xs text-ink-3">{note}</dd>
       </div>
-      <Money paise={value} className="shrink-0 text-[15px] font-medium" />
+      <Money paise={value} className="shrink-0 text-[15px]" />
     </div>
-  );
-}
-
-function Legend({
-  colour,
-  label,
-  value,
-}: {
-  colour: string;
-  label: string;
-  value: number;
-}) {
-  return (
-    <div className="flex items-center justify-between gap-3">
-      <span className="flex items-center gap-2 text-ink-2">
-        <span className={cx("h-2 w-2 rounded-sm", colour)} />
-        {label}
-      </span>
-      <Money paise={value} className="text-ink-3" />
-    </div>
-  );
-}
-
-function ExpenseRow({ txn, fundId }: { txn: Transaction; fundId: number }) {
-  const share = txn.allocations
-    .filter((a) => a.fund_id === fundId)
-    .reduce((sum, a) => sum + a.amount, 0);
-  const category = txn.allocations.find((a) => a.fund_id === fundId)?.category_name;
-  const split = txn.allocations.length > 1;
-
-  return (
-    <tr>
-      <Td className="whitespace-nowrap text-ink-2">{formatDate(txn.value_date)}</Td>
-      <Td>
-        <span className="block max-w-[320px] truncate" title={txn.description_raw}>
-          {txn.description_norm || txn.description_raw}
-        </span>
-        {split && (
-          <Chip tone="neutral" className="mt-1">
-            split across {txn.allocations.length} funds
-          </Chip>
-        )}
-      </Td>
-      <Td className="text-ink-2">{category ?? "—"}</Td>
-      <Td className="text-ink-3">{humanise(txn.kind)}</Td>
-      <Td right>
-        <Money paise={share} exact className="font-medium" />
-      </Td>
-    </tr>
   );
 }

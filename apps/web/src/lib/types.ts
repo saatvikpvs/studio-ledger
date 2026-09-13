@@ -54,7 +54,7 @@ export interface Category {
 export interface Fund {
   id: number;
   name: string;
-  kind: "project" | "personal" | "unassigned";
+  kind: "project" | "personal" | "savings" | "unassigned";
   project_id: number | null;
   balance: number;
 }
@@ -232,7 +232,13 @@ export interface Rule {
 export interface StagedRow {
   id: number;
   row_index: number;
-  state: "new" | "duplicate" | "possible_duplicate" | "error" | "committed";
+  state:
+    | "new"
+    | "duplicate"
+    | "possible_duplicate"
+    | "manual_match"
+    | "error"
+    | "committed";
   include: boolean;
   dup_of_txn_id: number | null;
   errors: string[];
@@ -257,6 +263,7 @@ export interface ImportPreview {
     total: number;
     new: number;
     duplicates: number;
+    matched_manually: number;
     errors: number;
     auto_categorised: number;
     needs_review: number;
@@ -277,6 +284,7 @@ export interface ImportBatch {
   row_count: number;
   new_count: number;
   dup_count: number;
+  matched_count?: number;
   error_count: number;
   status: string;
   period_start: string | null;
@@ -337,4 +345,58 @@ export interface FundTransfer {
   note: string | null;
   from_fund: string;
   to_fund: string;
+}
+
+/* ------------------------------------------------------ the three areas */
+
+export type AreaKey = "personal" | "professional" | "savings";
+
+export interface SavingsGoal {
+  id: number;
+  fund_id: number;
+  name: string;
+  balance: number;
+  target_amount: number;
+  target_date: string | null;
+  note: string | null;
+  percent: number;
+  remaining: number;
+  is_archived?: boolean;
+}
+
+export interface PersonalArea {
+  balance: number;
+  in_month: number;
+  out_month: number;
+  net_month: number;
+  fund_id: number;
+}
+
+export interface ProfessionalArea {
+  balance: number;
+  in_month: number;
+  out_month: number;
+  net_month: number;
+  active_projects: number;
+  receivable: number;
+  fee_earned_fy: number;
+  projects: ProjectSummary[];
+}
+
+export interface SavingsArea {
+  balance: number;
+  contributed_month: number;
+  goal_count: number;
+  goals: SavingsGoal[];
+}
+
+export interface Overview {
+  as_of: string;
+  bank_balance: number;
+  fiscal_year: { start: string; end: string };
+  personal: PersonalArea;
+  professional: ProfessionalArea;
+  savings: SavingsArea;
+  unassigned: { balance: number; count: number; fund_id: number };
+  accounts: { id: number; name: string; type: string; balance: number }[];
 }

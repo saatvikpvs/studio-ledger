@@ -72,6 +72,23 @@ def personal_fund(db: Session) -> Fund:
     return fund
 
 
+def fund_for_goal(db: Session, goal_id: int, name: str) -> Fund:
+    """Savings goals own a fund, exactly as projects do."""
+    from ..models import SavingsGoal
+
+    goal = db.get(SavingsGoal, goal_id)
+    if goal is not None and goal.fund_id:
+        return db.get(Fund, goal.fund_id)
+    fund = Fund(kind=FundKind.savings.value, name=name)
+    db.add(fund)
+    db.flush()
+    return fund
+
+
+def funds_of_kind(db: Session, kind: str) -> list[Fund]:
+    return list(db.scalars(select(Fund).where(Fund.kind == kind).order_by(Fund.sort_order, Fund.id)))
+
+
 def fund_for_project(db: Session, project_id: int, name: str) -> Fund:
     fund = db.scalar(select(Fund).where(Fund.project_id == project_id))
     if fund is None:

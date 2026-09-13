@@ -411,6 +411,42 @@ def monthly_flows(db: Session, months: int = 12, until: date | None = None) -> l
     return list(buckets.values())
 
 
+def monthly_flows_for_funds(
+    db: Session, fund_ids: list[int], months: int = 12, until: date | None = None
+) -> list[dict]:
+    """Monthly in/out for specific funds.
+
+    The all-accounts version is the wrong series for an area page: it would draw
+    bars on Personal for money that never touched Personal.
+    """
+    until = until or date.today()
+    start = (until.replace(day=1) - timedelta(days=31 * (months - 1))).replace(day=1)
+
+    buckets: dict[str, dict] = {}
+    cursor = start
+    while cursor <= until:
+        buckets[month_key(cursor)] = {
+            "month": month_key(cursor), "cash_in": 0, "cash_out": 0, "net": 0
+        }
+        cursor = (cursor.replace(day=28) + timedelta(days=8)).replace(day=1)
+
+    for fund_id in fund_ids:
+        for alloc, txn in _fund_rows(db, fund_id, start, until):
+            if txn.kind in {k.value for k in NEUTRAL_KINDS}:
+                continue
+            bucket = buckets.get(month_key(txn.value_date))
+            if bucket is None:
+                continue
+            if txn.direction == Direction.credit.value:
+                bucket["cash_in"] += alloc.amount
+            else:
+                bucket["cash_out"] += alloc.amount
+
+    for bucket in buckets.values():
+        bucket["net"] = bucket["cash_in"] - bucket["cash_out"]
+    return list(buckets.values())
+
+
 def balance_trend(db: Session, days: int = 120, until: date | None = None) -> list[dict]:
     until = until or date.today()
     start = until - timedelta(days=days)
@@ -486,3 +522,138 @@ def client_payment_timeline(db: Session, project_id: int | None = None) -> list[
                 "description": txn.description_raw,
             })
     return out
+
+
+# ---------------------------------------------------------------------------
+# the three areas
+# ---------------------------------------------------------------------------
+
+def _area_flows(db: Session, fund_ids: list[int], since: date, until: date
+                ) -> tuple[Paise, Paise]:
+    """Money in and money out for a set of funds, over a period."""
+    inflow = outflow = 0
+    for fund_id in fund_ids:
+        for alloc, txn in _fund_rows(db, fund_id, since, until):
+            if txn.kind in {k.value for k in NEUTRAL_KINDS}:
+                continue
+            if txn.direction == Direction.credit.value:
+                inflow += alloc.amount
+            else:
+                outflow += alloc.amount
+    return inflow, outflow
+
+
+def overview(db: Session, as_of: date | None = None) -> dict:
+    """Personal, Professional and Savings — the three areas, side by side.
+
+    Their balances plus Unassigned always sum to the money actually in the bank.
+    That is the same invariant the rest of the system rests on, shown as the
+    headline figure rather than hidden in a health endpoint.
+    """
+    from ..models import SavingsGoal
+
+    today = as_of or date.today()
+    month_start = today.replace(day=1)
+    fy_start, fy_end = fiscal_year_bounds(today)
+
+    personal = ledger.personal_fund(db)
+    unassigned = ledger.unassigned_fund(db)
+    project_funds = ledger.funds_of_kind(db, FundKind.project.value)
+    savings_funds = ledger.funds_of_kind(db, FundKind.savings.value)
+
+    # --- personal -----------------------------------------------------------
+    p_in, p_out = _area_flows(db, [personal.id], month_start, today)
+    personal_area = {
+        "balance": ledger.fund_balance(db, personal.id, today),
+        "in_month": p_in,
+        "out_month": p_out,
+        "net_month": p_in - p_out,
+        "fund_id": personal.id,
+    }
+
+    # --- professional -------------------------------------------------------
+    projects = list(
+        db.scalars(
+            select(Project).where(
+                Project.status.in_([ProjectStatus.active.value, ProjectStatus.on_hold.value])
+            )
+        )
+    )
+    summaries = [project_summary(db, p, today) for p in projects]
+    pro_in, pro_out = _area_flows(db, [f.id for f in project_funds], month_start, today)
+    professional_area = {
+        "balance": sum(ledger.fund_balance(db, f.id, today) for f in project_funds),
+        "in_month": pro_in,
+        "out_month": pro_out,
+        "net_month": pro_in - pro_out,
+        "active_projects": len(summaries),
+        "receivable": sum(s.receivable for s in summaries),
+        "fee_earned_fy": sum(
+            max(project_summary(db, p, today).fee_earned
+                - project_summary(db, p, fy_start - timedelta(days=1)).fee_earned, 0)
+            for p in db.scalars(select(Project))
+        ),
+        "projects": [asdict(s) for s in summaries],
+    }
+
+    # --- savings ------------------------------------------------------------
+    goals = []
+    for goal in db.scalars(
+        select(SavingsGoal).where(SavingsGoal.is_archived.is_(False))
+        .order_by(SavingsGoal.sort_order, SavingsGoal.id)
+    ):
+        balance = ledger.fund_balance(db, goal.fund_id, today)
+        target = goal.target_amount
+        goals.append({
+            "id": goal.id,
+            "fund_id": goal.fund_id,
+            "name": goal.name,
+            "balance": balance,
+            "target_amount": target,
+            "target_date": goal.target_date.isoformat() if goal.target_date else None,
+            "note": goal.note,
+            "percent": round(balance / target * 100, 1) if target else 0.0,
+            "remaining": max(target - balance, 0),
+        })
+
+    contributed = sum(
+        t.amount
+        for t in db.scalars(
+            select(FundTransfer).where(
+                FundTransfer.to_fund_id.in_([f.id for f in savings_funds] or [-1]),
+                FundTransfer.date >= month_start,
+                FundTransfer.date <= today,
+            )
+        )
+    ) if savings_funds else 0
+
+    savings_area = {
+        "balance": sum(ledger.fund_balance(db, f.id, today) for f in savings_funds),
+        "contributed_month": contributed,
+        "goal_count": len(goals),
+        "goals": goals,
+    }
+
+    unassigned_balance = ledger.fund_balance(db, unassigned.id, today)
+    review_count = len(
+        db.scalars(select(Allocation.id).where(Allocation.fund_id == unassigned.id)).all()
+    )
+
+    return {
+        "as_of": today.isoformat(),
+        "bank_balance": ledger.total_cash(db, today),
+        "fiscal_year": {"start": fy_start.isoformat(), "end": fy_end.isoformat()},
+        "personal": personal_area,
+        "professional": professional_area,
+        "savings": savings_area,
+        "unassigned": {
+            "balance": unassigned_balance,
+            "count": review_count,
+            "fund_id": unassigned.id,
+        },
+        "accounts": [
+            {"id": a.id, "name": a.name, "type": a.type,
+             "balance": ledger.account_balance(db, a.id, today)}
+            for a in db.scalars(select(Account).where(Account.is_archived.is_(False)))
+        ],
+    }

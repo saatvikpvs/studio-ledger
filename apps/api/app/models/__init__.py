@@ -77,7 +77,18 @@ SPEND_KINDS = {TxnKind.vendor_payment, TxnKind.tax_payment}
 class FundKind(str, enum.Enum):
     project = "project"
     personal = "personal"
+    savings = "savings"
     unassigned = "unassigned"
+
+
+#: The three areas the dashboard is organised around. A fund belongs to exactly
+#: one of them, which is what makes Personal / Professional / Savings add up.
+AREA_OF_FUND = {
+    FundKind.personal.value: "personal",
+    FundKind.project.value: "professional",
+    FundKind.savings.value: "savings",
+    FundKind.unassigned.value: "unassigned",
+}
 
 
 class ProjectStatus(str, enum.Enum):
@@ -110,12 +121,18 @@ class TransferReason(str, enum.Enum):
     reimbursement = "reimbursement"
     funding = "funding"
     correction = "correction"
+    savings_contribution = "savings_contribution"
+    savings_withdrawal = "savings_withdrawal"
 
 
 class StagedState(str, enum.Enum):
     new = "new"
     duplicate = "duplicate"
     possible_duplicate = "possible_duplicate"
+    #: Looks like something already entered by hand. Not a duplicate import --
+    #: the same real payment recorded twice, once by the user and once by the
+    #: bank. Importing it again would double the expense.
+    manual_match = "manual_match"
     error = "error"
     committed = "committed"
 
@@ -267,8 +284,13 @@ class Fund(Base, TimestampMixin):
     name: Mapped[str] = mapped_column(String(160))
     project_id: Mapped[int | None] = mapped_column(ForeignKey("project.id"), unique=True)
     is_system: Mapped[bool] = mapped_column(Boolean, default=False)
+    sort_order: Mapped[int] = mapped_column(Integer, default=0)
 
     project: Mapped[Project | None] = relationship(back_populates="fund")
+
+    @property
+    def area(self) -> str:
+        return AREA_OF_FUND.get(self.kind, "unassigned")
 
 
 # --------------------------------------------------------------------------
@@ -398,6 +420,7 @@ class ImportBatch(Base, TimestampMixin):
     row_count: Mapped[int] = mapped_column(Integer, default=0)
     new_count: Mapped[int] = mapped_column(Integer, default=0)
     dup_count: Mapped[int] = mapped_column(Integer, default=0)
+    matched_count: Mapped[int] = mapped_column(Integer, default=0)
     error_count: Mapped[int] = mapped_column(Integer, default=0)
 
     period_start: Mapped[date | None] = mapped_column(Date)
@@ -462,6 +485,28 @@ class Rule(Base, TimestampMixin):
 # --------------------------------------------------------------------------
 # assurance
 # --------------------------------------------------------------------------
+
+class SavingsGoal(Base, TimestampMixin):
+    """A named savings target.
+
+    Each goal owns a fund of kind ``savings``, exactly as each project owns one.
+    Reusing the fund means balances, transfers and the ledger invariant need no
+    special cases for savings.
+    """
+
+    __tablename__ = "savings_goal"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(160))
+    fund_id: Mapped[int] = mapped_column(ForeignKey("fund.id"), unique=True)
+    target_amount: Mapped[int] = mapped_column(BigInteger, default=0)
+    target_date: Mapped[date | None] = mapped_column(Date)
+    note: Mapped[str | None] = mapped_column(Text)
+    sort_order: Mapped[int] = mapped_column(Integer, default=0)
+    is_archived: Mapped[bool] = mapped_column(Boolean, default=False)
+
+    fund: Mapped[Fund] = relationship()
+
 
 class Reconciliation(Base, TimestampMixin):
     __tablename__ = "reconciliation"

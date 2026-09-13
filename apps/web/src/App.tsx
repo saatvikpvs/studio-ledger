@@ -6,19 +6,16 @@ import { Skeleton } from "./components/ui";
 import { api } from "./lib/api";
 import type { Owner } from "./lib/types";
 
-import Clients from "./pages/Clients";
-import Dashboard from "./pages/Dashboard";
-import Expenses from "./pages/Expenses";
-import ImportPage from "./pages/Import";
+import Entries from "./pages/Entries";
 import Login from "./pages/Login";
-import Payments from "./pages/Payments";
-import Personal from "./pages/Personal";
+import Overview from "./pages/Overview";
+import PersonalArea from "./pages/PersonalArea";
 import ProjectDetail from "./pages/ProjectDetail";
-import Projects from "./pages/Projects";
+import Reconcile from "./pages/Reconcile";
 import Reports from "./pages/Reports";
-import Review from "./pages/Review";
+import SavingsArea from "./pages/SavingsArea";
 import Settings from "./pages/Settings";
-import Transactions from "./pages/Transactions";
+import StudioArea from "./pages/StudioArea";
 
 export default function App() {
   const { data: owner, isLoading, isError } = useQuery<Owner>({
@@ -29,13 +26,9 @@ export default function App() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen p-8">
-        <Skeleton className="h-9 w-56" />
-        <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <Skeleton key={i} className="h-[92px]" />
-          ))}
-        </div>
+      <div className="sheet pt-16">
+        <Skeleton className="h-10 w-64" />
+        <Skeleton className="mt-8 h-[58px] w-full" />
       </div>
     );
   }
@@ -52,16 +45,13 @@ export default function App() {
   return (
     <Shell>
       <Routes>
-        <Route path="/" element={<Dashboard />} />
-        <Route path="/review" element={<Review />} />
-        <Route path="/projects" element={<Projects />} />
+        <Route path="/" element={<Overview />} />
+        <Route path="/personal" element={<PersonalArea />} />
+        <Route path="/studio" element={<StudioArea />} />
+        <Route path="/savings" element={<SavingsArea />} />
         <Route path="/projects/:id" element={<ProjectDetail />} />
-        <Route path="/clients" element={<Clients />} />
-        <Route path="/payments" element={<Payments />} />
-        <Route path="/transactions" element={<Transactions />} />
-        <Route path="/expenses" element={<Expenses />} />
-        <Route path="/personal" element={<Personal />} />
-        <Route path="/import" element={<ImportPage />} />
+        <Route path="/entries" element={<Entries />} />
+        <Route path="/reconcile" element={<Reconcile />} />
         <Route path="/reports" element={<Reports />} />
         <Route path="/settings" element={<Settings />} />
         <Route path="/login" element={<Navigate to="/" replace />} />

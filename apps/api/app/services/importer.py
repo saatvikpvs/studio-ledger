@@ -34,6 +34,11 @@ from . import ledger, rules
 FUZZY_THRESHOLD = 0.85
 FUZZY_WINDOW_DAYS = 3
 
+#: A payment entered by hand is often dated the day you remembered it, not the
+#: day it cleared, so matching manual entries needs a wider window than matching
+#: two bank statements against each other.
+MANUAL_WINDOW_DAYS = 4
+
 #: Banks fill the reference column with placeholders on UPI and card rows --
 #: "000000", "-", "NA". Treating those as identity makes every such row look
 #: like a duplicate of the last one, silently dropping real transactions.
@@ -104,7 +109,7 @@ def stage_file(
     # Number identical rows within this file so two genuine Rs 500 fuel fills on
     # the same day both survive hard de-duplication.
     seen: Counter[tuple] = Counter()
-    new = dupes = 0
+    new = dupes = matched = 0
 
     for row in result.rows:
         parsed = parse_narration(row.description)
@@ -129,6 +134,8 @@ def stage_file(
 
         if state == StagedState.new:
             new += 1
+        elif state == StagedState.manual_match:
+            matched += 1
         else:
             dupes += 1
 
@@ -171,7 +178,8 @@ def stage_file(
         )
 
     batch.new_count = new
-    batch.dup_count = dupes
+    batch.dup_count = dupes + matched
+    batch.matched_count = matched
     db.flush()
     return batch, result
 
@@ -198,16 +206,29 @@ def _classify_duplicate(
         if by_ref:
             return StagedState.duplicate, by_ref.id
 
-    window = db.scalars(
+    window = list(db.scalars(
         select(Transaction).where(
             Transaction.account_id == account_id,
             Transaction.amount == row.amount,
             Transaction.direction == row.direction,
-            Transaction.value_date >= row.value_date - timedelta(days=FUZZY_WINDOW_DAYS),
-            Transaction.value_date <= row.value_date + timedelta(days=FUZZY_WINDOW_DAYS),
+            Transaction.value_date >= row.value_date - timedelta(days=MANUAL_WINDOW_DAYS),
+            Transaction.value_date <= row.value_date + timedelta(days=MANUAL_WINDOW_DAYS),
         )
-    )
+    ))
+
+    # A hand-entered row for the same real payment. The amount, direction and
+    # date agreeing is strong evidence on its own -- the user typed "lunch"
+    # where the bank says "Paid to Sandeep chat bhandar", so the descriptions
+    # will not match and must not be required to.
     for candidate in window:
+        if candidate.source != "manual":
+            continue
+        if abs((candidate.value_date - row.value_date).days) <= MANUAL_WINDOW_DAYS:
+            return StagedState.manual_match, candidate.id
+
+    for candidate in window:
+        if abs((candidate.value_date - row.value_date).days) > FUZZY_WINDOW_DAYS:
+            continue
         similarity = SequenceMatcher(
             None, (candidate.description_norm or "").upper(), norm.upper()
         ).ratio()
@@ -235,6 +256,7 @@ def preview(db: Session, batch: ImportBatch) -> dict:
         if r.state == StagedState.new.value and not (r.suggestion or {}).get("auto_apply")
     )
 
+    matched = sum(1 for r in rows if r.state == StagedState.manual_match.value)
     return {
         "batch_id": batch.id,
         "filename": batch.filename,
@@ -245,7 +267,8 @@ def preview(db: Session, batch: ImportBatch) -> dict:
         "counts": {
             "total": batch.row_count,
             "new": batch.new_count,
-            "duplicates": batch.dup_count,
+            "duplicates": batch.dup_count - matched,
+            "matched_manually": matched,
             "errors": batch.error_count,
             "auto_categorised": auto,
             "needs_review": needs_review,

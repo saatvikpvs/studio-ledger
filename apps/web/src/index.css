@@ -2,134 +2,198 @@
 @tailwind components;
 @tailwind utilities;
 
-/* --------------------------------------------------------------------------
-   Palette. Blueprint ink on drafting paper, with semantic colour reserved
-   strictly for financial state -- green in, red out, ochre warning. The accent
-   is never used to mean "good" or "bad".
+/* ==========================================================================
+   SPATIAL ANTHOLOGY — ledger
 
-   Every token is declared here on bare :root so the un-stamped (system) theme
-   resolves correctly; the blocks below only redefine them.
-   -------------------------------------------------------------------------- */
+   The interface is a drawing sheet, not a dashboard. Sections are divided by
+   hairlines with their label in the left gutter, the way a plan is keyed.
+   Nothing floats in a card; everything sits on the paper.
+
+   Colour is material — paper, graphite, blueprint ink, patina, oxide — and is
+   spent on keylines and marks, never on fills. The three areas are told apart
+   by a 2px rule, not by a tinted panel.
+   ========================================================================== */
+
 :root {
-  --bg: #f1f3f2;
-  --surface: #ffffff;
-  --surface-2: #e8ebea;
-  --line: #d3d9d8;
-  --line-soft: #e3e7e6;
-  --ink: #16201f;
-  --ink-2: #4a5654;
-  --ink-3: #77827f;
-  --accent: #1d5478;
-  --accent-soft: #e2ecf2;
-  --pos: #1f6b4c;
-  --pos-soft: #dcebe3;
-  --neg: #ae3a24;
-  --neg-soft: #f4e0db;
-  --warn: #8f6209;
-  --warn-soft: #f2e8d2;
+  --paper: #efeee9;
+  --paper-2: #e7e5de;
+  --paper-3: #dedbd2;
+  --rule: #cfccc2;
+  --rule-soft: #e0ddd4;
+
+  --ink: #17171a;
+  --ink-2: #55555c;
+  --ink-3: #8a8a90;
+
+  --graphite: #3a3a42; /* Personal */
+  --blueprint: #2b4a7a; /* Professional */
+  --patina: #46695c; /* Savings */
+
+  --oxide: #a24a32; /* money out, warnings */
+  --sap: #4a6b3f; /* money in */
+  --ochre: #9a7326; /* needs attention */
+
   color-scheme: light;
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #0d1317;
-    --surface: #141c21;
-    --surface-2: #1d262c;
-    --line: #2b373e;
-    --line-soft: #212c32;
-    --ink: #e6ecee;
-    --ink-2: #a7b4ba;
-    --ink-3: #7c8a91;
-    --accent: #74b6d9;
-    --accent-soft: #122e3c;
-    --pos: #5fbe92;
-    --pos-soft: #14302a;
-    --neg: #e4826e;
-    --neg-soft: #38201b;
-    --warn: #d8a33f;
-    --warn-soft: #322611;
+    --paper: #15151a;
+    --paper-2: #1d1d23;
+    --paper-3: #26262e;
+    --rule: #35353f;
+    --rule-soft: #26262e;
+
+    --ink: #ecebe5;
+    --ink-2: #a6a5a0;
+    --ink-3: #76757a;
+
+    --graphite: #b9b8bd;
+    --blueprint: #7fa5d4;
+    --patina: #79ab98;
+
+    --oxide: #d98168;
+    --sap: #96c184;
+    --ochre: #d3aa5a;
+
     color-scheme: dark;
   }
 }
 
 :root[data-theme="dark"] {
-  --bg: #0d1317;
-  --surface: #141c21;
-  --surface-2: #1d262c;
-  --line: #2b373e;
-  --line-soft: #212c32;
-  --ink: #e6ecee;
-  --ink-2: #a7b4ba;
-  --ink-3: #7c8a91;
-  --accent: #74b6d9;
-  --accent-soft: #122e3c;
-  --pos: #5fbe92;
-  --pos-soft: #14302a;
-  --neg: #e4826e;
-  --neg-soft: #38201b;
-  --warn: #d8a33f;
-  --warn-soft: #322611;
+  --paper: #15151a;
+  --paper-2: #1d1d23;
+  --paper-3: #26262e;
+  --rule: #35353f;
+  --rule-soft: #26262e;
+
+  --ink: #ecebe5;
+  --ink-2: #a6a5a0;
+  --ink-3: #76757a;
+
+  --graphite: #b9b8bd;
+  --blueprint: #7fa5d4;
+  --patina: #79ab98;
+
+  --oxide: #d98168;
+  --sap: #96c184;
+  --ochre: #d3aa5a;
+
   color-scheme: dark;
 }
 
 @layer base {
   * {
-    @apply border-line;
+    border-color: var(--rule-soft);
   }
   html {
     -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
   }
   body {
-    @apply bg-bg text-ink font-sans;
     margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: theme("fontFamily.sans");
     font-size: 14px;
-  }
-  /* Figures line up in columns everywhere. */
-  .tabular {
+    line-height: 1.5;
     font-variant-numeric: tabular-nums;
   }
+  ::selection {
+    background: var(--paper-3);
+  }
   :focus-visible {
-    @apply outline-none ring-2 ring-accent ring-offset-2;
-    --tw-ring-offset-color: var(--bg);
+    outline: 1.5px solid var(--ink);
+    outline-offset: 2px;
   }
-  ::-webkit-scrollbar {
-    width: 10px;
-    height: 10px;
+  input,
+  select,
+  textarea,
+  button {
+    font: inherit;
+    color: inherit;
   }
-  ::-webkit-scrollbar-thumb {
-    background: var(--line);
-    border-radius: 10px;
-    border: 3px solid var(--bg);
-  }
-  ::-webkit-scrollbar-track {
-    background: transparent;
+  /* Figures always line up in columns. */
+  .tnum {
+    font-variant-numeric: tabular-nums;
   }
 }
 
 @layer components {
-  .label {
-    @apply font-mono text-2xs uppercase tracking-[0.12em] text-ink-3;
+  /* --- annotation: the small tracked caps used to key a drawing ---------- */
+  .annot {
+    @apply font-sans text-3xs uppercase tracking-annot text-ink-3;
+    font-weight: 500;
   }
-  .card {
-    @apply bg-surface border border-line rounded-lg;
+
+  /* --- the hairline that divides one section from the next -------------- */
+  .hairline {
+    @apply border-t border-rule;
   }
+
+  /* --- controls: square, ruled, no fills --------------------------------- */
   .field {
-    @apply w-full bg-surface border border-line rounded-md px-3 py-2 text-sm text-ink
-           placeholder:text-ink-3 focus:border-accent transition-colors;
+    @apply w-full bg-transparent border border-rule px-2.5 py-1.5 text-sm text-ink
+           placeholder:text-ink-3 transition-colors;
   }
+  .field:focus {
+    @apply border-ink outline-none;
+  }
+  .field-underline {
+    @apply w-full bg-transparent border-0 border-b border-rule px-0 py-1.5 text-ink
+           placeholder:text-ink-3 transition-colors;
+  }
+  .field-underline:focus {
+    @apply border-ink outline-none;
+  }
+
   .btn {
-    @apply inline-flex items-center justify-center gap-2 rounded-md px-3.5 py-2 text-sm
-           font-medium transition-colors disabled:opacity-50 disabled:pointer-events-none;
+    @apply inline-flex items-center justify-center gap-2 border px-3.5 py-1.5 text-sm
+           transition-colors disabled:opacity-40 disabled:pointer-events-none;
   }
-  .btn-primary {
-    @apply btn bg-accent text-white hover:opacity-90;
+  .btn-solid {
+    @apply btn border-ink bg-ink text-paper hover:bg-ink-2 hover:border-ink-2;
   }
-  .btn-ghost {
-    @apply btn border border-line text-ink-2 hover:bg-surface-2 hover:text-ink;
+  .btn-line {
+    @apply btn border-rule text-ink-2 hover:border-ink hover:text-ink;
+  }
+  .btn-quiet {
+    @apply inline-flex items-center gap-1.5 border-0 px-0 py-0 text-2xs text-ink-3
+           underline decoration-rule underline-offset-4 transition-colors
+           hover:text-ink hover:decoration-ink;
   }
   .btn-sm {
-    @apply px-2.5 py-1 text-xs rounded;
+    @apply px-2 py-1 text-2xs;
   }
+
+  /* --- the sheet grid ---------------------------------------------------- */
+  .sheet {
+    @apply mx-auto w-full max-w-sheet px-5 sm:px-8 lg:px-12;
+  }
+
+  /* A section: label in the gutter, content in the measure. */
+  .section {
+    @apply grid gap-x-8 gap-y-4 border-t border-rule py-8;
+    grid-template-columns: 1fr;
+  }
+  @media (min-width: 1024px) {
+    .section {
+      grid-template-columns: 132px minmax(0, 1fr);
+    }
+  }
+}
+
+/* Scrollbars: thin, paper-coloured, unobtrusive. */
+::-webkit-scrollbar {
+  width: 11px;
+  height: 11px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--rule);
+  border: 4px solid var(--paper);
+}
+::-webkit-scrollbar-track {
+  background: transparent;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -141,18 +205,12 @@
   }
 }
 
-/* Recharts inherits our tokens rather than shipping its own greys. */
-.recharts-cartesian-axis-tick text {
-  fill: var(--ink-3);
-  font-family: "IBM Plex Mono", monospace;
-  font-size: 10px;
-}
-.recharts-cartesian-grid line {
-  stroke: var(--line-soft);
-}
-.recharts-curve.recharts-tooltip-cursor,
-.recharts-rectangle.recharts-tooltip-cursor {
-  fill: var(--surface-2);
-  stroke: var(--line);
-  opacity: 0.5;
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  body {
+    background: #fff;
+    color: #000;
+  }
 }
