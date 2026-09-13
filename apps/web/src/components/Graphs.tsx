@@ -215,9 +215,8 @@ export function AreaDonut({
               strokeWidth="20"
               strokeDasharray={arc.dasharray}
               strokeDashoffset={arc.dashoffset}
+              strokeLinecap={arc.fraction < 0.02 ? "round" : "butt"}
               transform="rotate(-90 90 90)"
-              className="animate-draw"
-              style={{ transformOrigin: "90px 90px" }}
             />
           ))}
         </svg>
