@@ -1,0 +1,158 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* --------------------------------------------------------------------------
+   Palette. Blueprint ink on drafting paper, with semantic colour reserved
+   strictly for financial state -- green in, red out, ochre warning. The accent
+   is never used to mean "good" or "bad".
+
+   Every token is declared here on bare :root so the un-stamped (system) theme
+   resolves correctly; the blocks below only redefine them.
+   -------------------------------------------------------------------------- */
+:root {
+  --bg: #f1f3f2;
+  --surface: #ffffff;
+  --surface-2: #e8ebea;
+  --line: #d3d9d8;
+  --line-soft: #e3e7e6;
+  --ink: #16201f;
+  --ink-2: #4a5654;
+  --ink-3: #77827f;
+  --accent: #1d5478;
+  --accent-soft: #e2ecf2;
+  --pos: #1f6b4c;
+  --pos-soft: #dcebe3;
+  --neg: #ae3a24;
+  --neg-soft: #f4e0db;
+  --warn: #8f6209;
+  --warn-soft: #f2e8d2;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0d1317;
+    --surface: #141c21;
+    --surface-2: #1d262c;
+    --line: #2b373e;
+    --line-soft: #212c32;
+    --ink: #e6ecee;
+    --ink-2: #a7b4ba;
+    --ink-3: #7c8a91;
+    --accent: #74b6d9;
+    --accent-soft: #122e3c;
+    --pos: #5fbe92;
+    --pos-soft: #14302a;
+    --neg: #e4826e;
+    --neg-soft: #38201b;
+    --warn: #d8a33f;
+    --warn-soft: #322611;
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme="dark"] {
+  --bg: #0d1317;
+  --surface: #141c21;
+  --surface-2: #1d262c;
+  --line: #2b373e;
+  --line-soft: #212c32;
+  --ink: #e6ecee;
+  --ink-2: #a7b4ba;
+  --ink-3: #7c8a91;
+  --accent: #74b6d9;
+  --accent-soft: #122e3c;
+  --pos: #5fbe92;
+  --pos-soft: #14302a;
+  --neg: #e4826e;
+  --neg-soft: #38201b;
+  --warn: #d8a33f;
+  --warn-soft: #322611;
+  color-scheme: dark;
+}
+
+@layer base {
+  * {
+    @apply border-line;
+  }
+  html {
+    -webkit-font-smoothing: antialiased;
+  }
+  body {
+    @apply bg-bg text-ink font-sans;
+    margin: 0;
+    font-size: 14px;
+  }
+  /* Figures line up in columns everywhere. */
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+  :focus-visible {
+    @apply outline-none ring-2 ring-accent ring-offset-2;
+    --tw-ring-offset-color: var(--bg);
+  }
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--line);
+    border-radius: 10px;
+    border: 3px solid var(--bg);
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+}
+
+@layer components {
+  .label {
+    @apply font-mono text-2xs uppercase tracking-[0.12em] text-ink-3;
+  }
+  .card {
+    @apply bg-surface border border-line rounded-lg;
+  }
+  .field {
+    @apply w-full bg-surface border border-line rounded-md px-3 py-2 text-sm text-ink
+           placeholder:text-ink-3 focus:border-accent transition-colors;
+  }
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-md px-3.5 py-2 text-sm
+           font-medium transition-colors disabled:opacity-50 disabled:pointer-events-none;
+  }
+  .btn-primary {
+    @apply btn bg-accent text-white hover:opacity-90;
+  }
+  .btn-ghost {
+    @apply btn border border-line text-ink-2 hover:bg-surface-2 hover:text-ink;
+  }
+  .btn-sm {
+    @apply px-2.5 py-1 text-xs rounded;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Recharts inherits our tokens rather than shipping its own greys. */
+.recharts-cartesian-axis-tick text {
+  fill: var(--ink-3);
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 10px;
+}
+.recharts-cartesian-grid line {
+  stroke: var(--line-soft);
+}
+.recharts-curve.recharts-tooltip-cursor,
+.recharts-rectangle.recharts-tooltip-cursor {
+  fill: var(--surface-2);
+  stroke: var(--line);
+  opacity: 0.5;
+}

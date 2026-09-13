@@ -1,0 +1,21 @@
+# secrets and data -- never commit these
+.secret_key
+*.db
+*.db-wal
+*.db-shm
+.env
+uploads/
+
+# python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+
+# node
+node_modules/
+dist/
+
+# editors / os
+.DS_Store
+Thumbs.db
