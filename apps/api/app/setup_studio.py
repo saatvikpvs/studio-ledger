@@ -20,8 +20,8 @@ from .core.security import hash_password
 from .models import Account, AccountType, Category, Owner, TxnKind
 from .services import ledger
 
-EMAIL = "studio@spatialanthology.in"
-PASSWORD = "spatialanthology"
+EMAIL = "kartikpvss@gmail.com"
+PASSWORD = "Kartikp1234"
 
 # Personal categories — everyday life.
 PERSONAL = [
