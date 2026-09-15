@@ -23,6 +23,12 @@ class Settings(BaseSettings):
     secret_key: str = ""
     access_token_hours: int = 12
     cookie_secure: bool = False  # set true behind HTTPS
+    #: "lax" works when frontend and API share an origin (local dev, or the
+    #: single-process deploy). Splitting them across domains (e.g. a static
+    #: frontend on Firebase Hosting calling an API on Render) needs "none",
+    #: which requires cookie_secure=True -- browsers refuse a SameSite=None
+    #: cookie that isn't also Secure.
+    cookie_samesite: str = "lax"
     cookie_name: str = "sl_session"
 
     cors_origins: list[str] = ["http://localhost:5173", "http://127.0.0.1:5173"]
@@ -52,4 +58,12 @@ def _persisted_secret() -> str:
 settings = Settings()
 if not settings.secret_key:
     settings.secret_key = _persisted_secret()
+if settings.cookie_samesite.lower() == "none" and not settings.cookie_secure:
+    # A browser drops a SameSite=None cookie that isn't also Secure -- silently,
+    # with no error anywhere. Fail loudly at startup instead of "login works but
+    # nothing stays signed in" three deploys from now.
+    raise RuntimeError(
+        "COOKIE_SAMESITE=none requires COOKIE_SECURE=true (cross-site cookies "
+        "must be Secure, or browsers discard them)."
+    )
 settings.upload_dir.mkdir(parents=True, exist_ok=True)

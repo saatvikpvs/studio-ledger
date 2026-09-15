@@ -1,6 +1,10 @@
 /** The only place that talks to the server. */
 
-const BASE = "/api/v1";
+// Local dev and the single-process deploy both leave this unset and get a
+// relative path, which Vite's dev proxy (or the same-origin production
+// server) resolves. Set VITE_API_BASE_URL only when the frontend and API are
+// on different origins -- e.g. Firebase Hosting calling a Render API.
+const BASE = `${import.meta.env.VITE_API_BASE_URL ?? ""}/api/v1`;
 
 export class ApiError extends Error {
   status: number;

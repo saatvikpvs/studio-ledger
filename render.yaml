@@ -1,28 +1,33 @@
-# Render Blueprint — one web service, exactly the process that runs locally:
-# build the frontend, then run the FastAPI backend, which serves the built
-# frontend itself. No separate frontend/backend split, no CORS to configure.
+# Render Blueprint — the API only. The frontend is static and lives on
+# Firebase Hosting (see firebase.json), so this deploy no longer builds it --
+# faster builds, and one less thing to keep in sync.
 #
 # To use: push this to GitHub, then in Render choose "New +" -> "Blueprint"
 # and point it at this repo. Render reads this file and creates the service.
-# DATABASE_URL and SECRET_KEY are marked sync: false -- Render will prompt
-# for them in the dashboard rather than storing them in this file.
+# DATABASE_URL, SECRET_KEY and CORS_ORIGINS are marked sync: false -- Render
+# will prompt for them in the dashboard rather than storing them in this file.
 services:
   - type: web
-    name: studio-ledger
+    name: studio-ledger-api
     runtime: python
     plan: free
-    buildCommand: >
-      cd apps/web && npm install && npm run build &&
-      cd ../api && pip install -r requirements.txt
-    startCommand: cd apps/api && uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    rootDir: apps/api
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.9
-      - key: NODE_VERSION
-        value: 20.18.0
       - key: COOKIE_SECURE
         value: "true"
+      # The frontend now lives on a different origin (Firebase Hosting), so
+      # the session cookie must be SameSite=None to be sent on API calls from
+      # it. This requires COOKIE_SECURE=true above -- browsers discard a
+      # SameSite=None cookie that isn't also Secure. See app/core/config.py.
+      - key: COOKIE_SAMESITE
+        value: "none"
       - key: DATABASE_URL
         sync: false # paste your Neon connection string here, as postgresql+psycopg://...
       - key: SECRET_KEY
         sync: false # paste a long random string here (e.g. `openssl rand -hex 32`)
+      - key: CORS_ORIGINS
+        sync: false # e.g. ["https://your-project.web.app","https://your-project.firebaseapp.com"]
