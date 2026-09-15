@@ -3,12 +3,21 @@
 Not demo data. This lays out the structure — owner, accounts, categories, a
 starting balance — and leaves the transactions to you.
 
-    python -m app.setup_studio --reset --opening "0"
+The owner's real email and password are read from the environment, never
+hardcoded here — this file is committed to git, and a real credential baked
+into source is readable by anyone who can see the repo, forever, even after
+it's changed (it stays in history). Set OWNER_EMAIL and OWNER_PASSWORD before
+running this, or you'll get the obvious local-only placeholder below, which
+is fine for a laptop but should never be the real login for a deployed copy.
+
+    OWNER_EMAIL="you@example.com" OWNER_PASSWORD="something-long" \
+        python -m app.setup_studio --reset --opening "0"
 """
 
 from __future__ import annotations
 
 import argparse
+import os
 from datetime import date
 
 from sqlalchemy import select
@@ -20,8 +29,8 @@ from .core.security import hash_password
 from .models import Account, AccountType, Category, Owner, TxnKind
 from .services import ledger
 
-EMAIL = "kartikpvss@gmail.com"
-PASSWORD = "Kartikp1234"
+EMAIL = os.environ.get("OWNER_EMAIL", "owner@example.com")
+PASSWORD = os.environ.get("OWNER_PASSWORD", "change-me-please")
 
 # Personal categories — everyday life.
 PERSONAL = [

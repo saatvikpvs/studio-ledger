@@ -7,8 +7,8 @@ import { ApiError, api } from "../lib/api";
 
 export default function Login() {
   const queryClient = useQueryClient();
-  const [email, setEmail] = useState("kartikpvss@gmail.com");
-  const [password, setPassword] = useState("Kartikp1234");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
