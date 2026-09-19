@@ -1,4 +1,6 @@
-# secrets and data -- never commit these
+$env:OWNER_EMAIL = "you@example.com"
+$env:OWNER_PASSWORD = "your-long-password"
+python -m app.setup_studio --reset --opening "0"# secrets and data -- never commit these
 .secret_key
 *.db
 *.db-wal
