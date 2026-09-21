@@ -46,7 +46,7 @@ def on_startup() -> None:
     # Login always looks up by lowercased email; normalize any row an older
     # setup run stored with mixed case, so it stays findable.
     with engine.begin() as conn:
-        conn.execute(text("UPDATE owners SET email = lower(email) WHERE email != lower(email)"))
+        conn.execute(text("UPDATE owner SET email = lower(email) WHERE email != lower(email)"))
     log.info("Database ready at %s", settings.database_url)
 
 
