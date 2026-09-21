@@ -7,6 +7,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
+from sqlalchemy import text
 
 from .api.v1 import api_router
 from .core.config import settings
@@ -42,6 +43,10 @@ def on_startup() -> None:
     from . import models  # noqa: F401  (registers the tables)
 
     Base.metadata.create_all(bind=engine)
+    # Login always looks up by lowercased email; normalize any row an older
+    # setup run stored with mixed case, so it stays findable.
+    with engine.begin() as conn:
+        conn.execute(text("UPDATE owners SET email = lower(email) WHERE email != lower(email)"))
     log.info("Database ready at %s", settings.database_url)
 
 
