@@ -62,9 +62,9 @@ def setup(db: Session, opening_balance: str = "0") -> dict:
         return {"skipped": "already set up"}
 
     db.add(Owner(
-        email=EMAIL,
+        email=EMAIL.lower(),
         password_hash=hash_password(PASSWORD),
-        display_name="Saatvik",
+        display_name="Kartik",
         practice_name="Spatial Anthology",
         fiscal_year_start_month=4,
     ))
