@@ -47,6 +47,18 @@ def on_startup() -> None:
     # setup run stored with mixed case, so it stays findable.
     with engine.begin() as conn:
         conn.execute(text("UPDATE owner SET email = lower(email) WHERE email != lower(email)"))
+
+    # No shell on the deploy target to run setup_studio.py by hand, and a
+    # fresh disk (an ephemeral filesystem wiped on redeploy) starts with no
+    # owner row at all. Seed one from OWNER_EMAIL/OWNER_PASSWORD so the
+    # account always exists after a restart; setup() itself no-ops once an
+    # owner is already there.
+    from .core.db import SessionLocal
+    from .setup_studio import setup as seed_owner
+
+    with SessionLocal() as db:
+        seed_owner(db)
+
     log.info("Database ready at %s", settings.database_url)
 
 
