@@ -29,8 +29,8 @@ from .core.security import hash_password
 from .models import Account, AccountType, Category, Owner, TxnKind
 from .services import ledger
 
-EMAIL = os.environ.get("OWNER_EMAIL", "owner@example.com")
-PASSWORD = os.environ.get("OWNER_PASSWORD", "change-me-please")
+EMAIL = os.environ.get("OWNER_EMAIL", "kartikpvss@gmail.com")
+PASSWORD = os.environ.get("OWNER_PASSWORD", "Kartikp1234")
 
 # Personal categories — everyday life.
 PERSONAL = [
