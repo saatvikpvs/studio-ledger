@@ -51,13 +51,36 @@ def on_startup() -> None:
     # No shell on the deploy target to run setup_studio.py by hand, and a
     # fresh disk (an ephemeral filesystem wiped on redeploy) starts with no
     # owner row at all. Seed one from OWNER_EMAIL/OWNER_PASSWORD so the
-    # account always exists after a restart; setup() itself no-ops once an
-    # owner is already there.
+    # account always exists after a restart.
+    #
+    # A genuinely empty database needs the FULL first-time setup (owner,
+    # categories, accounts). But if the owner row alone goes missing while
+    # categories/accounts already exist -- e.g. someone deletes just that
+    # row to reset a forgotten password -- re-running the full setup would
+    # try to recreate those categories and crash on their unique
+    # constraint. So: only run the full setup against a database with no
+    # categories yet; otherwise just restore the owner row by itself.
+    from sqlalchemy import select
+
     from .core.db import SessionLocal
-    from .setup_studio import setup as seed_owner
+    from .core.security import hash_password
+    from .models import Category, Owner
+    from .setup_studio import EMAIL, PASSWORD
+    from .setup_studio import setup as seed_studio
 
     with SessionLocal() as db:
-        seed_owner(db)
+        if not db.scalar(select(Owner)):
+            if db.scalar(select(Category)):
+                db.add(Owner(
+                    email=EMAIL.lower(),
+                    password_hash=hash_password(PASSWORD),
+                    display_name="Owner",
+                    practice_name="Spatial Anthology",
+                    fiscal_year_start_month=4,
+                ))
+                db.commit()
+            else:
+                seed_studio(db)
 
     log.info("Database ready at %s", settings.database_url)
 
