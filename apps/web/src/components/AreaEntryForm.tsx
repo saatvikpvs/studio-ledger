@@ -303,6 +303,17 @@ export default function AreaEntryForm({ area }: { area: AreaKey }) {
             </div>
           </div>
 
+          <div className="w-[136px] shrink-0">
+            <Annot className="mb-1.5">Date</Annot>
+            <input
+              type="date"
+              value={when}
+              onChange={(e) => setWhen(e.target.value)}
+              max={new Date().toISOString().slice(0, 10)}
+              className="field-underline text-[13px]"
+            />
+          </div>
+
           {isProfessional && (
             <div className="w-[170px] shrink-0">
               <Annot className="mb-1.5">Project</Annot>
@@ -500,15 +511,6 @@ export default function AreaEntryForm({ area }: { area: AreaKey }) {
 
         {expanded && (
           <div className="animate-rise mt-3 flex flex-wrap items-end gap-x-4 gap-y-3 border-t border-rule-soft pt-3">
-            <div className="w-[150px]">
-              <Annot className="mb-1.5">Date</Annot>
-              <input
-                type="date"
-                value={when}
-                onChange={(e) => setWhen(e.target.value)}
-                className="field-underline text-[13px]"
-              />
-            </div>
             <div className="w-[180px]">
               <Annot className="mb-1.5">Account</Annot>
               <select
