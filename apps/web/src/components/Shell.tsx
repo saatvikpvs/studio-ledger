@@ -15,6 +15,7 @@ const AREAS = [
 ];
 
 const LEDGER = [
+  { to: "/calendar", label: "Calendar" },
   { to: "/reports", label: "Reports" },
   { to: "/settings", label: "Settings", badge: true },
 ];

@@ -4,11 +4,25 @@ import { useEffect, useRef, useState } from "react";
 import { ApiError, api } from "../lib/api";
 import { rupeesToPaise } from "../lib/money";
 import type { Account, AreaKey, Category, Fund } from "../lib/types";
-import { AREA_INK, Annot, Segmented, useToast } from "./ui";
+import { AREA_INK, Annot, Segmented, cx, useToast } from "./ui";
 
 type Direction = "debit" | "credit";
 
 const OTHERS = "__others__";
+
+interface SplitRow {
+  key: string;
+  categoryChoice: string;
+  customCategory: string;
+  amount: string;
+}
+
+const newSplitRow = (): SplitRow => ({
+  key: crypto.randomUUID(),
+  categoryChoice: "",
+  customCategory: "",
+  amount: "",
+});
 
 /**
  * Record what you just spent or received, scoped to the area whose page you
@@ -34,6 +48,8 @@ export default function AreaEntryForm({ area }: { area: AreaKey }) {
   const [accountId, setAccountId] = useState("");
   const [when, setWhen] = useState(() => new Date().toISOString().slice(0, 10));
   const [expanded, setExpanded] = useState(false);
+  const [splitMode, setSplitMode] = useState(false);
+  const [splitRows, setSplitRows] = useState<SplitRow[]>([newSplitRow(), newSplitRow()]);
 
   const accounts = useQuery<Account[]>({
     queryKey: ["accounts"],
@@ -90,15 +106,20 @@ export default function AreaEntryForm({ area }: { area: AreaKey }) {
     setCustomCategory("");
     setNote("");
     setWhen(new Date().toISOString().slice(0, 10));
+    setSplitMode(false);
+    setSplitRows([newSplitRow(), newSplitRow()]);
     amountRef.current?.focus();
   };
 
   /** Resolve "Others" + a typed name into a real category, reusing one that
    * already exists under that name rather than creating a duplicate. */
-  const resolveCategoryId = async (): Promise<number | null> => {
+  const resolveCategoryId = async (
+    choice: string,
+    custom: string,
+  ): Promise<number | null> => {
     if (isSavings) return null;
-    if (categoryChoice && categoryChoice !== OTHERS) return Number(categoryChoice);
-    const name = customCategory.trim();
+    if (choice && choice !== OTHERS) return Number(choice);
+    const name = custom.trim();
     if (!name) return null;
 
     try {
@@ -119,6 +140,18 @@ export default function AreaEntryForm({ area }: { area: AreaKey }) {
     }
   };
 
+  const splitTotal = splitRows.reduce(
+    (sum, row) => sum + (rupeesToPaise(row.amount) ?? 0),
+    0,
+  );
+  const splitRemaining = (rupeesToPaise(amount) ?? 0) - splitTotal;
+
+  const updateSplitRow = (key: string, patch: Partial<SplitRow>) =>
+    setSplitRows((rows) => rows.map((row) => (row.key === key ? { ...row, ...patch } : row)));
+  const addSplitRow = () => setSplitRows((rows) => [...rows, newSplitRow()]);
+  const removeSplitRow = (key: string) =>
+    setSplitRows((rows) => (rows.length > 2 ? rows.filter((row) => row.key !== key) : rows));
+
   const record = useMutation({
     mutationFn: async () => {
       const paise = rupeesToPaise(amount);
@@ -130,12 +163,6 @@ export default function AreaEntryForm({ area }: { area: AreaKey }) {
         : (funds.data ?? []).find((f) => f.kind === area)?.id;
       if (!target) throw new Error("No fund to file this against.");
 
-      const categoryId = await resolveCategoryId();
-      const categoryName =
-        categoryChoice === OTHERS
-          ? customCategory.trim()
-          : categoryOptions.find((c) => c.id === Number(categoryChoice))?.name;
-
       const kind = isProfessional
         ? direction === "credit"
           ? "client_payment"
@@ -143,6 +170,51 @@ export default function AreaEntryForm({ area }: { area: AreaKey }) {
         : direction === "credit"
           ? "personal_income"
           : "personal_spend";
+
+      if (splitMode && !isSavings) {
+        const rowsWithAmount = splitRows.filter((row) => row.amount.trim());
+        if (rowsWithAmount.length < 2) {
+          throw new Error("Add at least two categories to split across.");
+        }
+        if (rowsWithAmount.some((row) => !row.categoryChoice)) {
+          throw new Error("Every split needs a category.");
+        }
+        if (splitTotal !== paise) {
+          const diff = (paise - splitTotal) / 100;
+          throw new Error(
+            diff > 0
+              ? `₹${diff.toLocaleString("en-IN")} left to allocate.`
+              : `Splits are ₹${Math.abs(diff).toLocaleString("en-IN")} over the total.`,
+          );
+        }
+
+        const splits = [];
+        for (const row of rowsWithAmount) {
+          const categoryId = await resolveCategoryId(row.categoryChoice, row.customCategory);
+          splits.push({
+            fund_id: target,
+            amount: rupeesToPaise(row.amount) ?? 0,
+            category_id: categoryId,
+          });
+        }
+
+        const description = note.trim() || "Split across categories";
+        return api.post("/transactions", {
+          account_id: Number(accountId),
+          value_date: when,
+          direction,
+          amount: paise,
+          kind,
+          description,
+          splits,
+        });
+      }
+
+      const categoryId = await resolveCategoryId(categoryChoice, customCategory);
+      const categoryName =
+        categoryChoice === OTHERS
+          ? customCategory.trim()
+          : categoryOptions.find((c) => c.id === Number(categoryChoice))?.name;
 
       const description =
         note.trim() ||
@@ -242,6 +314,16 @@ export default function AreaEntryForm({ area }: { area: AreaKey }) {
                 className="field-underline text-[15px]"
               />
             </div>
+          ) : splitMode ? (
+            <div className="min-w-[200px] flex-1">
+              <Annot className="mb-1.5">Note</Annot>
+              <input
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                placeholder="Optional — what this withdrawal was for overall"
+                className="field-underline text-[15px]"
+              />
+            </div>
           ) : (
             <>
               <div className="w-[176px] shrink-0">
@@ -285,6 +367,22 @@ export default function AreaEntryForm({ area }: { area: AreaKey }) {
             </>
           )}
 
+          {!isSavings && (
+            <button
+              type="button"
+              onClick={() => setSplitMode((value) => !value)}
+              aria-pressed={splitMode}
+              className={cx(
+                "h-[34px] shrink-0 border px-3 text-2xs transition-colors",
+                splitMode
+                  ? "border-ink text-ink"
+                  : "border-rule text-ink-3 hover:border-ink hover:text-ink",
+              )}
+            >
+              Split
+            </button>
+          )}
+
           <button
             type="submit"
             disabled={record.isPending || !amount}
@@ -302,6 +400,100 @@ export default function AreaEntryForm({ area }: { area: AreaKey }) {
             {expanded ? "Less" : "More"}
           </button>
         </div>
+
+        {splitMode && !isSavings && (
+          <div className="animate-rise mt-3 border-t border-rule-soft pt-3">
+            <Annot className="mb-2">
+              Split {amount ? `₹${amount}` : "the amount"} across categories
+            </Annot>
+            <div className="flex flex-col gap-2">
+              {splitRows.map((row) => (
+                <div key={row.key} className="flex flex-wrap items-end gap-x-3 gap-y-2">
+                  <div className="w-[176px] shrink-0">
+                    <select
+                      value={row.categoryChoice}
+                      onChange={(e) =>
+                        updateSplitRow(row.key, {
+                          categoryChoice: e.target.value,
+                          customCategory: "",
+                        })
+                      }
+                      className="field-underline text-[13px]"
+                    >
+                      <option value="">Choose…</option>
+                      {categoryOptions.map((category) => (
+                        <option key={category.id} value={category.id}>
+                          {category.name}
+                        </option>
+                      ))}
+                      <option value={OTHERS}>Others…</option>
+                    </select>
+                  </div>
+                  {row.categoryChoice === OTHERS && (
+                    <div className="w-[150px] shrink-0">
+                      <input
+                        value={row.customCategory}
+                        onChange={(e) =>
+                          updateSplitRow(row.key, { customCategory: e.target.value })
+                        }
+                        placeholder="Name it"
+                        className="field-underline text-[15px]"
+                      />
+                    </div>
+                  )}
+                  <div className="w-[120px] shrink-0">
+                    <div className="flex items-baseline border-b border-ink">
+                      <span className="pb-1 pr-1 font-serif text-[15px] text-ink-3">₹</span>
+                      <input
+                        value={row.amount}
+                        onChange={(e) => updateSplitRow(row.key, { amount: e.target.value })}
+                        inputMode="decimal"
+                        placeholder="0"
+                        className="w-full bg-transparent pb-1 text-[15px] tnum outline-none
+                                   placeholder:text-ink-3/50"
+                      />
+                    </div>
+                  </div>
+                  {splitRows.length > 2 && (
+                    <button
+                      type="button"
+                      onClick={() => removeSplitRow(row.key)}
+                      aria-label="Remove this split"
+                      className="pb-1 text-2xs text-ink-3 hover:text-oxide"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+            <div className="mt-2 flex items-center gap-4">
+              <button
+                type="button"
+                onClick={addSplitRow}
+                className="text-2xs text-ink-3 hover:text-ink"
+              >
+                + Add category
+              </button>
+              <span
+                className={cx(
+                  "text-2xs tnum",
+                  splitRemaining === 0
+                    ? "text-sap"
+                    : splitRemaining < 0
+                      ? "text-oxide"
+                      : "text-ink-3",
+                )}
+              >
+                {splitRemaining === 0
+                  ? "Fully allocated"
+                  : splitRemaining > 0
+                    ? `₹${(splitRemaining / 100).toLocaleString("en-IN")} left to allocate`
+                    : `₹${(Math.abs(splitRemaining) / 100).toLocaleString("en-IN")} over the total`}
+              </span>
+            </div>
+          </div>
+        )}
 
         {expanded && (
           <div className="animate-rise mt-3 flex flex-wrap items-end gap-x-4 gap-y-3 border-t border-rule-soft pt-3">

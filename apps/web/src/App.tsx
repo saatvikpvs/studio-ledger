@@ -6,6 +6,7 @@ import { Skeleton } from "./components/ui";
 import { api } from "./lib/api";
 import type { Owner } from "./lib/types";
 
+import Calendar from "./pages/Calendar";
 import Login from "./pages/Login";
 import Overview from "./pages/Overview";
 import PersonalArea from "./pages/PersonalArea";
@@ -48,6 +49,7 @@ export default function App() {
         <Route path="/studio" element={<StudioArea />} />
         <Route path="/savings" element={<SavingsArea />} />
         <Route path="/projects/:id" element={<ProjectDetail />} />
+        <Route path="/calendar" element={<Calendar />} />
         <Route path="/reports" element={<Reports />} />
         <Route path="/settings" element={<Settings />} />
         <Route path="/login" element={<Navigate to="/" replace />} />
