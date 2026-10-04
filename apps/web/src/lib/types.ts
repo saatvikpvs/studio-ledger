@@ -109,6 +109,7 @@ export interface Allocation {
   category_id: number | null;
   category_name: string | null;
   amount: number;
+  note: string | null;
   confidence: number;
   applied_by: string;
   reason: string | null;

@@ -208,6 +208,7 @@ class AllocationOut(BaseModel):
     category_id: int | None
     category_name: str | None
     amount: int
+    note: str | None
     confidence: float
     applied_by: str
     reason: str | None

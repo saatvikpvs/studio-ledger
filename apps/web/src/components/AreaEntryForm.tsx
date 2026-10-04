@@ -15,6 +15,7 @@ interface SplitRow {
   categoryChoice: string;
   customCategory: string;
   amount: string;
+  note: string;
 }
 
 const newSplitRow = (): SplitRow => ({
@@ -22,6 +23,7 @@ const newSplitRow = (): SplitRow => ({
   categoryChoice: "",
   customCategory: "",
   amount: "",
+  note: "",
 });
 
 /**
@@ -50,6 +52,7 @@ export default function AreaEntryForm({ area }: { area: AreaKey }) {
   const [expanded, setExpanded] = useState(false);
   const [splitMode, setSplitMode] = useState(false);
   const [splitRows, setSplitRows] = useState<SplitRow[]>([newSplitRow(), newSplitRow()]);
+  const firstSplitRef = useRef<HTMLSelectElement>(null);
 
   const accounts = useQuery<Account[]>({
     queryKey: ["accounts"],
@@ -100,6 +103,12 @@ export default function AreaEntryForm({ area }: { area: AreaKey }) {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
+  // Turning Split on hands off to the split rows -- that's where entry
+  // continues, not the amount field above them.
+  useEffect(() => {
+    if (splitMode) firstSplitRef.current?.focus();
+  }, [splitMode]);
+
   const reset = () => {
     setAmount("");
     setCategoryChoice("");
@@ -144,7 +153,12 @@ export default function AreaEntryForm({ area }: { area: AreaKey }) {
     (sum, row) => sum + (rupeesToPaise(row.amount) ?? 0),
     0,
   );
-  const splitRemaining = (rupeesToPaise(amount) ?? 0) - splitTotal;
+
+  // In split mode the total isn't typed -- it's whatever the rows add up to.
+  useEffect(() => {
+    if (!splitMode) return;
+    setAmount(splitTotal > 0 ? (splitTotal / 100).toString() : "");
+  }, [splitMode, splitTotal]);
 
   const updateSplitRow = (key: string, patch: Partial<SplitRow>) =>
     setSplitRows((rows) => rows.map((row) => (row.key === key ? { ...row, ...patch } : row)));
@@ -179,33 +193,31 @@ export default function AreaEntryForm({ area }: { area: AreaKey }) {
         if (rowsWithAmount.some((row) => !row.categoryChoice)) {
           throw new Error("Every split needs a category.");
         }
-        if (splitTotal !== paise) {
-          const diff = (paise - splitTotal) / 100;
-          throw new Error(
-            diff > 0
-              ? `₹${diff.toLocaleString("en-IN")} left to allocate.`
-              : `Splits are ₹${Math.abs(diff).toLocaleString("en-IN")} over the total.`,
-          );
-        }
 
         const splits = [];
+        const parts: string[] = [];
         for (const row of rowsWithAmount) {
           const categoryId = await resolveCategoryId(row.categoryChoice, row.customCategory);
+          const categoryName =
+            row.categoryChoice === OTHERS
+              ? row.customCategory.trim()
+              : categoryOptions.find((c) => c.id === Number(row.categoryChoice))?.name;
           splits.push({
             fund_id: target,
             amount: rupeesToPaise(row.amount) ?? 0,
             category_id: categoryId,
+            note: row.note.trim() || null,
           });
+          parts.push(row.note.trim() || categoryName || "—");
         }
 
-        const description = note.trim() || "Split across categories";
         return api.post("/transactions", {
           account_id: Number(accountId),
           value_date: when,
           direction,
           amount: paise,
           kind,
-          description,
+          description: parts.join(", "),
           splits,
         });
       }
@@ -270,18 +282,23 @@ export default function AreaEntryForm({ area }: { area: AreaKey }) {
           </div>
 
           <div className="w-[152px] shrink-0">
-            <Annot className="mb-1.5">Amount</Annot>
+            <Annot className="mb-1.5">{splitMode ? "Total" : "Amount"}</Annot>
             <div className="flex items-baseline border-b border-ink">
               <span className="pb-1 pr-1.5 font-serif text-[22px] text-ink-3">₹</span>
               <input
                 ref={amountRef}
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
+                readOnly={splitMode}
                 inputMode="decimal"
                 placeholder="0"
-                aria-label="Amount"
-                className="w-full bg-transparent pb-1 font-serif text-[26px] leading-none
-                           tnum outline-none placeholder:text-ink-3/50"
+                aria-label={splitMode ? "Total, from the splits below" : "Amount"}
+                title={splitMode ? "Adds up from the splits below" : undefined}
+                className={cx(
+                  "w-full bg-transparent pb-1 font-serif text-[26px] leading-none",
+                  "tnum outline-none placeholder:text-ink-3/50",
+                  splitMode && "text-ink-2",
+                )}
               />
             </div>
           </div>
@@ -314,17 +331,7 @@ export default function AreaEntryForm({ area }: { area: AreaKey }) {
                 className="field-underline text-[15px]"
               />
             </div>
-          ) : splitMode ? (
-            <div className="min-w-[200px] flex-1">
-              <Annot className="mb-1.5">Note</Annot>
-              <input
-                value={note}
-                onChange={(e) => setNote(e.target.value)}
-                placeholder="Optional — what this withdrawal was for overall"
-                className="field-underline text-[15px]"
-              />
-            </div>
-          ) : (
+          ) : splitMode ? null : (
             <>
               <div className="w-[176px] shrink-0">
                 <Annot className="mb-1.5">Category</Annot>
@@ -403,14 +410,13 @@ export default function AreaEntryForm({ area }: { area: AreaKey }) {
 
         {splitMode && !isSavings && (
           <div className="animate-rise mt-3 border-t border-rule-soft pt-3">
-            <Annot className="mb-2">
-              Split {amount ? `₹${amount}` : "the amount"} across categories
-            </Annot>
+            <Annot className="mb-2">Split across categories</Annot>
             <div className="flex flex-col gap-2">
-              {splitRows.map((row) => (
+              {splitRows.map((row, i) => (
                 <div key={row.key} className="flex flex-wrap items-end gap-x-3 gap-y-2">
                   <div className="w-[176px] shrink-0">
                     <select
+                      ref={i === 0 ? firstSplitRef : undefined}
                       value={row.categoryChoice}
                       onChange={(e) =>
                         updateSplitRow(row.key, {
@@ -441,7 +447,7 @@ export default function AreaEntryForm({ area }: { area: AreaKey }) {
                       />
                     </div>
                   )}
-                  <div className="w-[120px] shrink-0">
+                  <div className="w-[110px] shrink-0">
                     <div className="flex items-baseline border-b border-ink">
                       <span className="pb-1 pr-1 font-serif text-[15px] text-ink-3">₹</span>
                       <input
@@ -453,6 +459,14 @@ export default function AreaEntryForm({ area }: { area: AreaKey }) {
                                    placeholder:text-ink-3/50"
                       />
                     </div>
+                  </div>
+                  <div className="min-w-[140px] flex-1">
+                    <input
+                      value={row.note}
+                      onChange={(e) => updateSplitRow(row.key, { note: e.target.value })}
+                      placeholder="Note (optional)"
+                      className="field-underline text-[13px]"
+                    />
                   </div>
                   {splitRows.length > 2 && (
                     <button
@@ -475,22 +489,11 @@ export default function AreaEntryForm({ area }: { area: AreaKey }) {
               >
                 + Add category
               </button>
-              <span
-                className={cx(
-                  "text-2xs tnum",
-                  splitRemaining === 0
-                    ? "text-sap"
-                    : splitRemaining < 0
-                      ? "text-oxide"
-                      : "text-ink-3",
-                )}
-              >
-                {splitRemaining === 0
-                  ? "Fully allocated"
-                  : splitRemaining > 0
-                    ? `₹${(splitRemaining / 100).toLocaleString("en-IN")} left to allocate`
-                    : `₹${(Math.abs(splitRemaining) / 100).toLocaleString("en-IN")} over the total`}
-              </span>
+              {splitTotal > 0 && (
+                <span className="text-2xs tnum text-ink-3">
+                  Total ₹{(splitTotal / 100).toLocaleString("en-IN")}
+                </span>
+              )}
             </div>
           </div>
         )}
