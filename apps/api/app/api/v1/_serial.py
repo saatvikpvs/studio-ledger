@@ -24,6 +24,7 @@ def serialise_transaction(db: Session, txn: Transaction, suggestion: dict | None
                 "category_id": alloc.category_id,
                 "category_name": category.name if category else None,
                 "amount": alloc.amount,
+                "note": alloc.note,
                 "confidence": alloc.confidence,
                 "applied_by": alloc.applied_by,
                 "reason": alloc.reason,

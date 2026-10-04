@@ -266,7 +266,12 @@ export default function Calendar() {
                           {txn.description_norm || txn.description_raw}
                         </span>
                       </Td>
-                      <Td className="text-ink-2">{alloc.category_name ?? "—"}</Td>
+                      <Td className="text-ink-2">
+                        {alloc.category_name ?? "—"}
+                        {alloc.note && (
+                          <span className="block text-3xs text-ink-3">{alloc.note}</span>
+                        )}
+                      </Td>
                       <Td right>
                         <Money paise={signed} exact tone={txn.direction === "credit" ? "in" : "out"} />
                       </Td>
