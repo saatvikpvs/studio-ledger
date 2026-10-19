@@ -103,7 +103,10 @@ class VendorOut(ORM):
 class CategoryIn(BaseModel):
     name: str
     scope: Literal["project", "personal", "both"] = "both"
-    colour: str = "#64748b"
+    # Matches the category.colour column (VARCHAR(9) -- "#RRGGBB" or
+    # "#RRGGBBAA"). Caught here as a clean validation error, not as a raw
+    # database truncation error from whichever caller sends something longer.
+    colour: str = Field(default="#64748b", max_length=9)
     reimbursable: bool = True
 
 
