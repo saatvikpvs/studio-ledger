@@ -104,11 +104,10 @@ export default function SavingsArea() {
             </thead>
             <tbody>
               {rows.map((txn) => {
-                const alloc = txn.allocations.find((a) => a.fund_kind === "savings");
-                const signed =
-                  txn.direction === "credit"
-                    ? (alloc?.amount ?? 0)
-                    : -(alloc?.amount ?? 0);
+                const total = txn.allocations
+                  .filter((a) => a.fund_kind === "savings")
+                  .reduce((sum, a) => sum + a.amount, 0);
+                const signed = txn.direction === "credit" ? total : -total;
                 return (
                   <tr key={txn.id}>
                     <Td className="whitespace-nowrap text-ink-3">

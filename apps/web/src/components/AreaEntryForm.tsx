@@ -10,6 +10,15 @@ type Direction = "debit" | "credit";
 
 const OTHERS = "__others__";
 
+/** Enter in a free-text field shouldn't submit the whole entry -- the only
+ * thing it can mean here is "done typing this field," not "done with the
+ * form," and the form has a Record button of its own for that. Without this,
+ * naming a category and hitting Enter out of habit submits mid-split, before
+ * that row even has an amount -- which then fails validation silently. */
+const stopEnterSubmit = (event: React.KeyboardEvent<HTMLInputElement>) => {
+  if (event.key === "Enter") event.preventDefault();
+};
+
 interface SplitRow {
   key: string;
   categoryChoice: string;
@@ -366,6 +375,7 @@ export default function AreaEntryForm({ area }: { area: AreaKey }) {
                   <input
                     value={customCategory}
                     onChange={(e) => setCustomCategory(e.target.value)}
+                    onKeyDown={stopEnterSubmit}
                     placeholder="e.g. Pet care"
                     autoFocus
                     className="field-underline text-[15px]"
@@ -453,6 +463,7 @@ export default function AreaEntryForm({ area }: { area: AreaKey }) {
                         onChange={(e) =>
                           updateSplitRow(row.key, { customCategory: e.target.value })
                         }
+                        onKeyDown={stopEnterSubmit}
                         placeholder="Name it"
                         className="field-underline text-[15px]"
                       />
@@ -464,6 +475,7 @@ export default function AreaEntryForm({ area }: { area: AreaKey }) {
                       <input
                         value={row.amount}
                         onChange={(e) => updateSplitRow(row.key, { amount: e.target.value })}
+                        onKeyDown={stopEnterSubmit}
                         inputMode="decimal"
                         placeholder="0"
                         className="w-full bg-transparent pb-1 text-[15px] tnum outline-none
@@ -475,6 +487,7 @@ export default function AreaEntryForm({ area }: { area: AreaKey }) {
                     <input
                       value={row.note}
                       onChange={(e) => updateSplitRow(row.key, { note: e.target.value })}
+                      onKeyDown={stopEnterSubmit}
                       placeholder="Note (optional)"
                       className="field-underline text-[13px]"
                     />

@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
 import { CategoryRules } from "../components/Graphs";
@@ -44,6 +44,14 @@ export default function ProjectDetail() {
   const queryClient = useQueryClient();
   const toast = useToast();
   const [drawing, setDrawing] = useState(false);
+  const [openEntries, setOpenEntries] = useState<Set<number>>(new Set());
+  const toggleEntry = (id: number) =>
+    setOpenEntries((open) => {
+      const next = new Set(open);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
 
   const detail = useQuery<Detail>({
     queryKey: ["project", id],
@@ -251,33 +259,66 @@ export default function ProjectDetail() {
             </thead>
             <tbody>
               {debits.map((txn) => {
-                const share = txn.allocations
-                  .filter((a) => a.fund_id === fund_id)
-                  .reduce((sum, a) => sum + a.amount, 0);
-                const category = txn.allocations.find(
-                  (a) => a.fund_id === fund_id,
-                )?.category_name;
+                const projectAllocs = txn.allocations.filter((a) => a.fund_id === fund_id);
+                const share = projectAllocs.reduce((sum, a) => sum + a.amount, 0);
+                const canExpand = projectAllocs.length > 1;
+                const isOpen = canExpand && openEntries.has(txn.id);
                 return (
-                  <tr key={txn.id}>
-                    <Td className="whitespace-nowrap text-ink-3">
-                      {formatDateShort(txn.value_date)}
-                    </Td>
-                    <Td className="max-w-[300px]">
-                      <span className="block truncate" title={txn.description_raw}>
-                        {txn.description_norm || txn.description_raw}
-                      </span>
-                      {txn.allocations.length > 1 && (
-                        <span className="text-3xs text-ink-3">
-                          split across {txn.allocations.length} areas
+                  <Fragment key={txn.id}>
+                    <tr
+                      className={canExpand ? "cursor-pointer" : undefined}
+                      onClick={canExpand ? () => toggleEntry(txn.id) : undefined}
+                    >
+                      <Td className="whitespace-nowrap text-ink-3">
+                        {formatDateShort(txn.value_date)}
+                      </Td>
+                      <Td className="max-w-[300px]">
+                        <span className="block truncate" title={txn.description_raw}>
+                          {txn.description_norm || txn.description_raw}
                         </span>
-                      )}
-                    </Td>
-                    <Td className="text-ink-2">{category ?? "—"}</Td>
-                    <Td className="text-ink-3">{humanise(txn.kind)}</Td>
-                    <Td right>
-                      <Money paise={share} exact tone="out" />
-                    </Td>
-                  </tr>
+                        {txn.allocations.length > projectAllocs.length && (
+                          <span className="text-3xs text-ink-3">
+                            split across {txn.allocations.length} areas
+                          </span>
+                        )}
+                      </Td>
+                      <Td className="text-ink-2">
+                        {canExpand ? (
+                          <span className="inline-flex items-center gap-1.5">
+                            <span className="text-ink-3">{isOpen ? "▾" : "▸"}</span>
+                            {projectAllocs.length} categories
+                          </span>
+                        ) : (
+                          (projectAllocs[0]?.category_name ?? "—")
+                        )}
+                      </Td>
+                      <Td className="text-ink-3">{humanise(txn.kind)}</Td>
+                      <Td right>
+                        <Money paise={share} exact tone="out" />
+                      </Td>
+                    </tr>
+                    {isOpen && (
+                      <tr>
+                        <td />
+                        <td colSpan={3} className="border-b border-rule-soft bg-paper-2 py-2 pr-2">
+                          <div className="flex flex-col gap-1">
+                            {projectAllocs.map((a) => (
+                              <div
+                                key={a.id}
+                                className="flex items-center justify-between gap-4 text-2xs"
+                              >
+                                <span className="text-ink-2">
+                                  {a.category_name ?? "—"}
+                                  {a.note && <span className="text-ink-3"> — {a.note}</span>}
+                                </span>
+                                <Money paise={a.amount} exact tone="out" />
+                              </div>
+                            ))}
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
                 );
               })}
             </tbody>
