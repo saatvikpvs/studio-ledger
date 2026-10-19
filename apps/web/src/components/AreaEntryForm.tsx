@@ -35,6 +35,18 @@ const newSplitRow = (): SplitRow => ({
   note: "",
 });
 
+/** category.colour is a stored VARCHAR(9) -- a plain hex value, not a live
+ * CSS variable reference. AREA_INK's var(--…) strings are for styling this
+ * page's own elements and are far too long for that column (SQLite never
+ * enforces the length and let this through silently; Postgres does, and
+ * rejects the insert outright). This is the same palette, just as the hex
+ * literals those variables resolve to in light mode. */
+const AREA_HEX: Record<AreaKey, string> = {
+  personal: "#3a3a42",
+  professional: "#2b4a7a",
+  savings: "#46695c",
+};
+
 /**
  * Record what you just spent or received, scoped to the area whose page you
  * are already on. No area chooser — the page you're standing on says which
@@ -144,7 +156,7 @@ export default function AreaEntryForm({ area }: { area: AreaKey }) {
       const created = await api.post<Category>("/categories", {
         name,
         scope,
-        colour: accent,
+        colour: AREA_HEX[area],
       });
       queryClient.invalidateQueries({ queryKey: ["categories"] });
       return created.id;

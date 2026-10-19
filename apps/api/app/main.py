@@ -111,6 +111,21 @@ async def ledger_error_handler(_request: Request, exc: LedgerError):
     return JSONResponse(status_code=400, content={"detail": str(exc)})
 
 
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(_request: Request, exc: Exception):
+    # Starlette's own default for an uncaught exception is plain text, not
+    # JSON -- the frontend's error handling expects a {"detail": ...} body
+    # and silently falls back to an empty message when it isn't, which is
+    # how a real server error (e.g. a Postgres constraint the request never
+    # should have hit) turned into a blank, unreadable toast. Log the full
+    # traceback server-side; never leak internals to the client.
+    log.exception("Unhandled error on %s %s", _request.method, _request.url.path)
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Something went wrong on the server. Please try again."},
+    )
+
+
 @app.get("/api/health")
 def health():
     return {"status": "ok", "app": settings.app_name}
