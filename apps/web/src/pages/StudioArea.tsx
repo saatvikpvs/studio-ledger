@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { Link } from "react-router-dom";
 
 import AreaEntryForm from "../components/AreaEntryForm";
@@ -38,6 +38,14 @@ export default function StudioArea() {
   const queryClient = useQueryClient();
   const toast = useToast();
   const [creating, setCreating] = useState<"project" | "client" | null>(null);
+  const [openEntries, setOpenEntries] = useState<Set<number>>(new Set());
+  const toggleEntry = (id: number) =>
+    setOpenEntries((open) => {
+      const next = new Set(open);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
 
   const overview = useQuery<Overview>({
     queryKey: ["overview"],
@@ -308,38 +316,78 @@ export default function StudioArea() {
             </thead>
             <tbody>
               {entries.data.items.map((txn) => {
-                const alloc = txn.allocations.find((a) => a.fund_kind === "project");
-                const signed =
-                  txn.direction === "credit"
-                    ? (alloc?.amount ?? 0)
-                    : -(alloc?.amount ?? 0);
+                const projectAllocs = txn.allocations.filter((a) => a.fund_kind === "project");
+                const total = projectAllocs.reduce((sum, a) => sum + a.amount, 0);
+                const signed = txn.direction === "credit" ? total : -total;
+                const fundNames = [...new Set(projectAllocs.map((a) => a.fund_name))];
+                const canExpand = projectAllocs.length > 1;
+                const isOpen = canExpand && openEntries.has(txn.id);
                 return (
-                  <tr key={txn.id}>
-                    <Td className="whitespace-nowrap text-ink-3">
-                      {formatDateShort(txn.value_date)}
-                    </Td>
-                    <Td className="max-w-[280px]">
-                      <span className="block truncate" title={txn.description_raw}>
-                        {txn.description_norm || txn.description_raw}
-                      </span>
-                      <span className="text-3xs text-ink-3">{humanise(txn.kind)}</span>
-                    </Td>
-                    <Td className="text-ink-2">{alloc?.fund_name ?? "—"}</Td>
-                    <Td className="text-ink-2">{alloc?.category_name ?? "—"}</Td>
-                    <Td right>
-                      <Money
-                        paise={signed}
-                        exact
-                        tone={txn.direction === "credit" ? "in" : "out"}
-                      />
-                    </Td>
-                    <Td right>
-                      <DeleteButton
-                        onClick={() => deleteEntry.mutate(txn.id)}
-                        disabled={deleteEntry.isPending}
-                      />
-                    </Td>
-                  </tr>
+                  <Fragment key={txn.id}>
+                    <tr
+                      className={canExpand ? "cursor-pointer" : undefined}
+                      onClick={canExpand ? () => toggleEntry(txn.id) : undefined}
+                    >
+                      <Td className="whitespace-nowrap text-ink-3">
+                        {formatDateShort(txn.value_date)}
+                      </Td>
+                      <Td className="max-w-[280px]">
+                        <span className="block truncate" title={txn.description_raw}>
+                          {txn.description_norm || txn.description_raw}
+                        </span>
+                        <span className="text-3xs text-ink-3">{humanise(txn.kind)}</span>
+                      </Td>
+                      <Td className="text-ink-2">{fundNames.join(", ") || "—"}</Td>
+                      <Td className="text-ink-2">
+                        {canExpand ? (
+                          <span className="inline-flex items-center gap-1.5">
+                            <span className="text-ink-3">{isOpen ? "▾" : "▸"}</span>
+                            {projectAllocs.length} categories
+                          </span>
+                        ) : (
+                          (projectAllocs[0]?.category_name ?? "—")
+                        )}
+                      </Td>
+                      <Td right>
+                        <Money
+                          paise={signed}
+                          exact
+                          tone={txn.direction === "credit" ? "in" : "out"}
+                        />
+                      </Td>
+                      <Td right>
+                        <DeleteButton
+                          onClick={() => deleteEntry.mutate(txn.id)}
+                          disabled={deleteEntry.isPending}
+                        />
+                      </Td>
+                    </tr>
+                    {isOpen && (
+                      <tr>
+                        <td />
+                        <td colSpan={5} className="border-b border-rule-soft bg-paper-2 py-2 pr-2">
+                          <div className="flex flex-col gap-1">
+                            {projectAllocs.map((a) => (
+                              <div
+                                key={a.id}
+                                className="flex items-center justify-between gap-4 text-2xs"
+                              >
+                                <span className="text-ink-2">
+                                  {a.category_name ?? "—"}
+                                  {a.note && <span className="text-ink-3"> — {a.note}</span>}
+                                </span>
+                                <Money
+                                  paise={txn.direction === "credit" ? a.amount : -a.amount}
+                                  exact
+                                  tone={txn.direction === "credit" ? "in" : "out"}
+                                />
+                              </div>
+                            ))}
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
                 );
               })}
             </tbody>

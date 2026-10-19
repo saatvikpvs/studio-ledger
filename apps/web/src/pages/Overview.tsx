@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { Fragment, useState } from "react";
 import { Link } from "react-router-dom";
 
 import { AreaDonut, type DonutSlice } from "../components/Graphs";
@@ -22,6 +23,15 @@ import { formatDate, formatDateShort } from "../lib/money";
 import type { Overview as OverviewData, TransactionPage } from "../lib/types";
 
 export default function Overview() {
+  const [openEntries, setOpenEntries] = useState<Set<number>>(new Set());
+  const toggleEntry = (id: number) =>
+    setOpenEntries((open) => {
+      const next = new Set(open);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+
   const overview = useQuery<OverviewData>({
     queryKey: ["overview"],
     queryFn: () => api.get<OverviewData>("/overview"),
@@ -197,34 +207,75 @@ export default function Overview() {
                       : alloc?.fund_kind === "personal"
                         ? "personal"
                         : "unassigned";
+                const canExpand = txn.allocations.length > 1;
+                const isOpen = canExpand && openEntries.has(txn.id);
                 return (
-                  <tr key={txn.id}>
-                    <Td className="whitespace-nowrap text-ink-3">
-                      {formatDateShort(txn.value_date)}
-                    </Td>
-                    <Td className="max-w-[320px]">
-                      <span className="block truncate" title={txn.description_raw}>
-                        {txn.description_norm || txn.description_raw}
-                      </span>
-                    </Td>
-                    <Td>
-                      <Mark colour={AREA_INK[area]}>
-                        {area === "unassigned"
-                          ? "Unfiled"
-                          : area === "professional"
-                            ? alloc?.fund_name ?? "Studio"
-                            : area}
-                      </Mark>
-                    </Td>
-                    <Td className="text-ink-3">{alloc?.category_name ?? "—"}</Td>
-                    <Td right>
-                      <Money
-                        paise={txn.signed_amount}
-                        exact
-                        tone={txn.direction === "credit" ? "in" : "out"}
-                      />
-                    </Td>
-                  </tr>
+                  <Fragment key={txn.id}>
+                    <tr
+                      className={canExpand ? "cursor-pointer" : undefined}
+                      onClick={canExpand ? () => toggleEntry(txn.id) : undefined}
+                    >
+                      <Td className="whitespace-nowrap text-ink-3">
+                        {formatDateShort(txn.value_date)}
+                      </Td>
+                      <Td className="max-w-[320px]">
+                        <span className="block truncate" title={txn.description_raw}>
+                          {txn.description_norm || txn.description_raw}
+                        </span>
+                      </Td>
+                      <Td>
+                        <Mark colour={AREA_INK[area]}>
+                          {area === "unassigned"
+                            ? "Unfiled"
+                            : area === "professional"
+                              ? alloc?.fund_name ?? "Studio"
+                              : area}
+                        </Mark>
+                      </Td>
+                      <Td className="text-ink-3">
+                        {canExpand ? (
+                          <span className="inline-flex items-center gap-1.5">
+                            <span className="text-ink-3">{isOpen ? "▾" : "▸"}</span>
+                            {txn.allocations.length} categories
+                          </span>
+                        ) : (
+                          (alloc?.category_name ?? "—")
+                        )}
+                      </Td>
+                      <Td right>
+                        <Money
+                          paise={txn.signed_amount}
+                          exact
+                          tone={txn.direction === "credit" ? "in" : "out"}
+                        />
+                      </Td>
+                    </tr>
+                    {isOpen && (
+                      <tr>
+                        <td />
+                        <td colSpan={4} className="border-b border-rule-soft bg-paper-2 py-2 pr-2">
+                          <div className="flex flex-col gap-1">
+                            {txn.allocations.map((a) => (
+                              <div
+                                key={a.id}
+                                className="flex items-center justify-between gap-4 text-2xs"
+                              >
+                                <span className="text-ink-2">
+                                  {a.category_name ?? "—"}
+                                  {a.note && <span className="text-ink-3"> — {a.note}</span>}
+                                </span>
+                                <Money
+                                  paise={txn.direction === "credit" ? a.amount : -a.amount}
+                                  exact
+                                  tone={txn.direction === "credit" ? "in" : "out"}
+                                />
+                              </div>
+                            ))}
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
                 );
               })}
             </tbody>
